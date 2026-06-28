@@ -66,9 +66,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
   if (url.pathname === "/") {
     return send(res, 200, "text/html; charset=utf-8", html.replace("__TOKEN__", ctx.token));
   }
-  // The logo is public (no token) — used for the header badge and favicon.
+  // The logo is public (no token) — favicon uses logo.svg, the header uses the
+  // dark-mode variant (light strokes) so it reads on the dark UI without a badge.
   if (url.pathname === "/logo.svg") {
     return send(res, 200, "image/svg+xml", readTextOr(`${TEMPLATES_DIR}/logo.svg`));
+  }
+  if (url.pathname === "/logo-dark.svg") {
+    return send(res, 200, "image/svg+xml", readTextOr(`${TEMPLATES_DIR}/logo-dark.svg`));
   }
   // Everything under /api requires the token.
   if (url.pathname.startsWith("/api/")) {
