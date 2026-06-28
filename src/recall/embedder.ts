@@ -25,7 +25,11 @@ export class LocalEmbedder implements Embedder {
     if (this.pipe) return this.pipe;
     let mod: any;
     try {
-      mod = await import("@xenova/transformers");
+      // Resolved at runtime only — the package is an OPTIONAL dependency, so a
+      // non-literal specifier keeps `tsc` from requiring it at compile time
+      // (it isn't installed in CI's --no-optional build).
+      const pkg = "@xenova/transformers";
+      mod = await import(pkg);
     } catch {
       throw new Error(
         "Semantic recall needs the optional '@xenova/transformers' package. Install it with:\n" +
