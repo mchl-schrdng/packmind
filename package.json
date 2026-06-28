@@ -1,0 +1,62 @@
+{
+  "name": "packmind",
+  "version": "0.1.0",
+  "description": "A second brain for Claude Code: project memory, real token & cost accounting, semantic recall, and active guardrails.",
+  "type": "module",
+  "bin": {
+    "packmind": "./dist/bin/packmind.js"
+  },
+  "scripts": {
+    "prebuild": "node -e \"const fs=require('fs');if(fs.existsSync('dist'))fs.rmSync('dist',{recursive:true})\"",
+    "build": "tsc && tsc -p tsconfig.hooks.json",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@xenova/transformers": "^2.17.2",
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ignore": "^6.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "onnxruntime-node", "sharp", "protobufjs"]
+  },
+  "license": "Apache-2.0",
+  "author": "Michael Scherding",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mchl-schrdng/packmind.git"
+  },
+  "homepage": "https://github.com/mchl-schrdng/packmind",
+  "bugs": {
+    "url": "https://github.com/mchl-schrdng/packmind/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "ai",
+    "context",
+    "tokens",
+    "cost",
+    "memory",
+    "developer-tools"
+  ],
+  "files": [
+    "dist/",
+    "src/templates/",
+    "LICENSE",
+    "README.md"
+  ]
+}

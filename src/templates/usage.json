@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "model": "claude-opus-4-8",
+  "createdAt": "",
+  "totals": {
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "inputCost": 0,
+    "outputCost": 0,
+    "reads": 0,
+    "writes": 0,
+    "sessions": 0,
+    "dedupedReads": 0,
+    "mapHits": 0
+  },
+  "sessions": []
+}

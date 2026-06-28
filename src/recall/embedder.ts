@@ -1,0 +1,45 @@
+import { userRoot } from "../util/platform.js";
+
+/** Anything that can turn text into vectors (real model or a test stub). */
+export interface Embedder {
+  dimensions(): number;
+  embed(texts: string[]): Promise<number[][]>;
+}
+
+/**
+ * Local, offline embedder backed by transformers.js (WASM). The model is
+ * downloaded once and cached under ~/.packmind/models — no API key, no network
+ * after the first run, nothing leaves the machine.
+ */
+export class LocalEmbedder implements Embedder {
+  private pipe: unknown = null;
+  private dims = 384;
+
+  constructor(private readonly model = "Xenova/all-MiniLM-L6-v2") {}
+
+  dimensions(): number {
+    return this.dims;
+  }
+
+  private async ensure(): Promise<any> {
+    if (this.pipe) return this.pipe;
+    const mod: any = await import("@xenova/transformers");
+    mod.env.cacheDir = `${userRoot()}/models`;
+    mod.env.allowLocalModels = true;
+    this.pipe = await mod.pipeline("feature-extraction", this.model);
+    return this.pipe;
+  }
+
+  async embed(texts: string[]): Promise<number[][]> {
+    if (texts.length === 0) return [];
+    const pipe = await this.ensure();
+    const out: number[][] = [];
+    for (const text of texts) {
+      const tensor: any = await pipe(text, { pooling: "mean", normalize: true });
+      const vec = Array.from(tensor.data as Float32Array);
+      this.dims = vec.length;
+      out.push(vec);
+    }
+    return out;
+  }
+}

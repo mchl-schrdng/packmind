@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "no-secret-files",
+      "message": "This path looks like a secrets/credentials file. PackMind will not index it.",
+      "severity": "warn",
+      "secretFile": true
+    }
+  ]
+}
