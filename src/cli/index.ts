@@ -10,6 +10,7 @@ import { runPolicyCheck } from "./policy-cmd.js";
 import { runDoctor } from "./doctor.js";
 import { runUpdate } from "./update.js";
 import { runMcp } from "./mcp-cmd.js";
+import { runDashboard } from "./dashboard-cmd.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -48,6 +49,13 @@ export function createProgram(): Command {
   program.command("doctor").description("Diagnose projects, hooks, and MCP registration").action(runDoctor);
 
   program.command("mcp").description("Run the PackMind MCP server (stdio)").action(() => runMcp());
+
+  program
+    .command("dashboard")
+    .description("Open the local web dashboard (loopback only, token-protected)")
+    .option("--port <port>", "Preferred port (default 7878)")
+    .option("--no-open", "Don't auto-open the browser")
+    .action((o) => runDashboard(o));
 
   return program;
 }

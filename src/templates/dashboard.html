@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PackMind</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2230; --border: #2a3140;
+    --text: #e6edf3; --muted: #8b95a5; --accent: #00e5ff; --accent2: #4dabf5;
+    --good: #3fb950; --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header .logo { width: 34px; height: 34px; border-radius: 9px; padding: 4px;
+    background: radial-gradient(circle at 30% 25%, #f4f8fc, #cfdae6); display: flex;
+    box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(0,0,0,.35); }
+  header .logo svg { width: 100%; height: 100%; display: block; }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good);
+    box-shadow: 0 0 8px var(--good); }
+  header .title { display: flex; flex-direction: column; gap: 1px; }
+  header .title small { color: var(--muted); font-size: 11px; }
+  header .spacer { flex: 1; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+  .card .value { font-size: 26px; font-weight: 650; margin-top: 6px; }
+  .card .value.accent { color: var(--accent); }
+  .card .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  section { margin-top: 28px; }
+  section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
+    margin: 0 0 12px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+  tr:last-child td { border-bottom: none; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--accent2); }
+  code { background: var(--surface2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  .search { display: flex; gap: 8px; margin-bottom: 12px; }
+  .search input { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; }
+  .search input:focus { border-color: var(--accent); }
+  .search button { background: var(--accent); color: #00252b; border: none; padding: 0 18px;
+    border-radius: 8px; font-weight: 600; cursor: pointer; }
+  .hit { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px; }
+  .hit .h { display: flex; gap: 8px; align-items: center; font-size: 12px; margin-bottom: 6px; }
+  .hit .kind { color: var(--accent); text-transform: uppercase; letter-spacing: .5px; }
+  .hit .src { color: var(--muted); }
+  .hit .score { margin-left: auto; color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .hit pre { margin: 0; white-space: pre-wrap; font-size: 12px; color: var(--text); max-height: 120px; overflow: auto; }
+  .bars { display: flex; align-items: flex-end; gap: 4px; height: 90px; padding: 8px 14px 0; }
+  .bar { flex: 1; background: linear-gradient(var(--accent), var(--accent2)); border-radius: 3px 3px 0 0;
+    min-height: 2px; opacity: .85; }
+  .bars-wrap { padding-bottom: 12px; }
+  .bars-axis { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; padding: 4px 14px 0; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab { padding: 7px 14px; border-radius: 8px; cursor: pointer; color: var(--muted); border: 1px solid transparent; }
+  .tab.active { color: var(--text); background: var(--surface); border-color: var(--border); }
+  pre.raw { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+    white-space: pre-wrap; font-size: 12px; max-height: 360px; overflow: auto; color: var(--muted); }
+  .empty { color: var(--muted); padding: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo"><img src="/logo.svg" alt="PackMind" width="26" height="26" /></span>
+  <span class="title">
+    <h1>PackMind</h1>
+    <small id="project"></small>
+  </span>
+  <span class="spacer"></span>
+  <span class="dot"></span>
+  <span class="meta" id="model"></span>
+</header>
+<main>
+  <div class="cards" id="cards"></div>
+
+  <section>
+    <h2>Cost per session</h2>
+    <div class="panel bars-wrap">
+      <div class="bars" id="bars"></div>
+      <div class="bars-axis"><span>oldest</span><span id="costtotal"></span><span>latest</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Recall — semantic search</h2>
+    <div class="search">
+      <input id="q" placeholder="Search project memory by meaning… (e.g. how is auth handled)" />
+      <button id="go">Search</button>
+    </div>
+    <div id="hits"></div>
+  </section>
+
+  <section>
+    <div class="tabs">
+      <div class="tab active" data-tab="map">Map</div>
+      <div class="tab" data-tab="solutions">Solutions</div>
+      <div class="tab" data-tab="journal">Journal</div>
+    </div>
+    <div id="tabbody"></div>
+  </section>
+</main>
+<script>
+const TOKEN = "__TOKEN__";
+const api = (p) => fetch(p + (p.includes("?") ? "&" : "?") + "token=" + TOKEN).then(r => r.json());
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const money = (n) => "$" + (n || 0).toFixed(4);
+
+async function loadOverview() {
+  const o = await api("/api/overview");
+  $("project").textContent = o.project || "";
+  $("model").textContent = o.model || "";
+  const t = o.totals;
+  $("cards").innerHTML = [
+    ["Total cost", money(o.cost), (t.inputTokens+t.outputTokens).toLocaleString()+" tokens", true],
+    ["Files mapped", o.files, "", false],
+    ["Vectors", o.vectors.toLocaleString(), "semantic index", false],
+    ["Sessions", t.sessions, "", false],
+    ["Re-reads avoided", t.dedupedReads, t.mapHits+" map hits", false],
+    ["Writes", t.writes, t.reads+" reads", false],
+  ].map(([l,v,s,a]) => `<div class="card"><div class="label">${l}</div>
+    <div class="value${a?" accent":""}">${v}</div><div class="sub">${s||""}</div></div>`).join("");
+
+  const sessions = o.sessions || [];
+  const costs = sessions.map(s => (s.inputCost||0)+(s.outputCost||0));
+  const max = Math.max(0.0001, ...costs);
+  $("bars").innerHTML = costs.length
+    ? costs.map(c => `<div class="bar" style="height:${Math.round((c/max)*100)}%" title="${money(c)}"></div>`).join("")
+    : '<div class="empty">No sessions yet.</div>';
+  $("costtotal").textContent = sessions.length ? sessions.length + " sessions" : "";
+}
+
+async function loadTab(tab) {
+  const body = $("tabbody");
+  if (tab === "map") {
+    const rows = await api("/api/map");
+    body.innerHTML = `<div class="panel"><table><thead><tr><th>File</th><th>Description</th>
+      <th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>` +
+      rows.slice(0, 100).map(r => `<tr><td><code>${esc(r.section)}${esc(r.file)}</code></td>
+      <td>${esc(r.description)}</td><td class="num">${r.tokens}</td><td class="num">${money(r.cost)}</td></tr>`).join("") +
+      `</tbody></table></div>`;
+  } else if (tab === "solutions") {
+    const sols = await api("/api/solutions");
+    body.innerHTML = sols.length ? `<div class="panel"><table><thead><tr><th>Error</th><th>Fix</th><th>Tags</th></tr></thead><tbody>` +
+      sols.map(s => `<tr><td>${esc(s.error)}</td><td>${esc(s.fix)}</td><td>${(s.tags||[]).map(esc).join(", ")}</td></tr>`).join("") +
+      `</tbody></table></div>` : '<div class="panel empty">No recorded solutions yet.</div>';
+  } else {
+    const j = await api("/api/journal");
+    body.innerHTML = `<pre class="raw">${esc(j.text || "")}</pre>`;
+  }
+}
+
+async function search() {
+  const q = $("q").value.trim();
+  if (!q) return;
+  $("hits").innerHTML = '<div class="empty">Searching…</div>';
+  const { hits } = await api("/api/recall?q=" + encodeURIComponent(q));
+  $("hits").innerHTML = hits.length ? hits.map(h => `<div class="hit">
+    <div class="h"><span class="kind">${esc(h.kind)}</span><span class="src">${esc(h.source)}</span>
+    <span class="score">${(h.score||0).toFixed(2)}</span></div>
+    <pre>${esc((h.text||"").slice(0,500))}</pre></div>`).join("") : '<div class="empty">No matches.</div>';
+}
+
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
+  t.classList.add("active");
+  loadTab(t.dataset.tab);
+});
+$("go").onclick = search;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
+
+loadOverview();
+loadTab("map");
+setInterval(loadOverview, 5000);
+</script>
+</body>
+</html>

@@ -5,6 +5,12 @@ dist/
 *.tmp
 *.tmp.*
 
+# PackMind dogfooding its own repo — not part of the source tree
+.packmind/
+.mcp.json
+.claude/
+/CLAUDE.md
+
 # PackMind per-developer state (not committed in consuming projects):
 # .packmind/journal.md
 # .packmind/usage.json

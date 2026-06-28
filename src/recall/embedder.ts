@@ -23,7 +23,16 @@ export class LocalEmbedder implements Embedder {
 
   private async ensure(): Promise<any> {
     if (this.pipe) return this.pipe;
-    const mod: any = await import("@xenova/transformers");
+    let mod: any;
+    try {
+      mod = await import("@xenova/transformers");
+    } catch {
+      throw new Error(
+        "Semantic recall needs the optional '@xenova/transformers' package. Install it with:\n" +
+          "  npm install -g @xenova/transformers\n" +
+          "(or set recall.enabled = false in .packmind/config.json to disable recall).",
+      );
+    }
     mod.env.cacheDir = `${userRoot()}/models`;
     mod.env.allowLocalModels = true;
     this.pipe = await mod.pipeline("feature-extraction", this.model);

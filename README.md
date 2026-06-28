@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml"><img src="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <img src="https://img.shields.io/badge/Node.js-20%2B-green.svg" alt="Node.js 20+" />
 </p>
@@ -67,6 +68,7 @@ packmind index            Build the local semantic recall index
 packmind recall <query>   Search project memory from the terminal
 packmind solutions <term> Search recorded fixes
 packmind status           Token usage, dollar cost, and health
+packmind dashboard        Open the local web dashboard (loopback, token-protected)
 packmind policy check     Lint guardrail rules
 packmind doctor           Diagnose projects, hooks, and MCP registration
 packmind update           Update registered projects (preserves your config.json)
