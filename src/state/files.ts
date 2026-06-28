@@ -1,0 +1,73 @@
+import { stateFile } from "../util/paths.js";
+import { readJsonOr, writeJson } from "../util/fs-atomic.js";
+
+/** Resolve the standard brain-file paths for a project. */
+export function brain(projectRoot: string) {
+  return {
+    dir: stateFile(projectRoot),
+    protocol: stateFile(projectRoot, "PACKMIND.md"),
+    config: stateFile(projectRoot, "config.json"),
+    map: stateFile(projectRoot, "map.md"),
+    knowledge: stateFile(projectRoot, "knowledge.md"),
+    journal: stateFile(projectRoot, "journal.md"),
+    solutions: stateFile(projectRoot, "solutions.json"),
+    usage: stateFile(projectRoot, "usage.json"),
+    handoff: stateFile(projectRoot, "handoff.md"),
+    policy: stateFile(projectRoot, "policy.json"),
+    identity: stateFile(projectRoot, "identity.md"),
+    session: stateFile(projectRoot, "state", "session.json"),
+    recallDir: stateFile(projectRoot, "recall"),
+    queue: stateFile(projectRoot, "recall", "queue.json"),
+    vectors: stateFile(projectRoot, "recall", "vectors.json"),
+    hooksDir: stateFile(projectRoot, "hooks"),
+  };
+}
+
+/** Per-read accounting record kept during a live session. */
+export interface ReadRecord {
+  count: number;
+  tokens: number;
+  cost: number;
+  mtime: number;
+  first: string;
+}
+
+export interface SessionState {
+  id: string;
+  started: string;
+  reads: Record<string, ReadRecord>;
+  writes: Array<{ file: string; action: string; tokens: number; at: string }>;
+  editCounts: Record<string, number>;
+  inputTokens: number;
+  outputTokens: number;
+  inputCost: number;
+  outputCost: number;
+  mapHits: number;
+  mapMisses: number;
+  dedupedReads: number;
+}
+
+export function emptySession(id: string): SessionState {
+  return {
+    id,
+    started: new Date().toISOString(),
+    reads: {},
+    writes: [],
+    editCounts: {},
+    inputTokens: 0,
+    outputTokens: 0,
+    inputCost: 0,
+    outputCost: 0,
+    mapHits: 0,
+    mapMisses: 0,
+    dedupedReads: 0,
+  };
+}
+
+export function readSession(projectRoot: string): SessionState | null {
+  return readJsonOr<SessionState | null>(brain(projectRoot).session, null);
+}
+
+export function writeSession(projectRoot: string, s: SessionState): void {
+  writeJson(brain(projectRoot).session, s);
+}

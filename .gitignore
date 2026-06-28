@@ -1,0 +1,20 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+*.tmp
+*.tmp.*
+
+# PackMind dogfooding its own repo — not part of the source tree
+.packmind/
+.mcp.json
+.claude/
+/CLAUDE.md
+.wolf/
+
+# PackMind per-developer state (not committed in consuming projects):
+# .packmind/journal.md
+# .packmind/usage.json
+# .packmind/state/
+# .packmind/recall/
+# .packmind/hooks/*.lock

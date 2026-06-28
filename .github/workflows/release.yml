@@ -1,0 +1,40 @@
+name: Release
+
+# Publishes to npm when you publish a GitHub Release.
+# Requires an npm "Automation" token stored as the repo secret NPM_TOKEN.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build & test
+        run: pnpm build && pnpm test
+
+      # `prepublishOnly` rebuilds; --no-git-checks since the tag is the release ref.
+      - name: Publish to npm
+        run: npm publish --provenance=false --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "model": "claude-opus-4-8",
+  "map": {
+    "autoScanOnInit": true,
+    "maxFiles": 600,
+    "respectGitignore": true,
+    "excludeDirs": [
+      "node_modules",
+      ".git",
+      ".packmind",
+      ".claude",
+      "dist",
+      "build",
+      "out",
+      ".next",
+      ".nuxt",
+      ".svelte-kit",
+      "coverage",
+      "__pycache__",
+      ".cache",
+      "target",
+      ".venv",
+      "vendor",
+      ".turbo",
+      ".vercel",
+      ".idea",
+      ".vscode"
+    ],
+    "extraSecretGlobs": []
+  },
+  "cost": {
+    "exact": "auto"
+  },
+  "recall": {
+    "enabled": true,
+    "embedModel": "Xenova/all-MiniLM-L6-v2",
+    "chunkChars": 1200,
+    "topK": 6
+  },
+  "guard": {
+    "blockSecrets": false
+  },
+  "claude": {
+    "settingsPath": ".claude/settings.json",
+    "claudeMdPath": "CLAUDE.md"
+  }
+}

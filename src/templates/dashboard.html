@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PackMind</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
+<style>
+  :root {
+    --bg: #0a0e14; --side: #0d1117; --surface: #131922; --surface2: #1a212c;
+    --border: #20262f; --border2: #2a323d;
+    --text: #e6edf3; --muted: #8b95a5; --faint: #5b6675;
+    --accent: #00e5ff; --accent2: #4dabf5; --good: #3fb950; --warn: #d29922;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: inherit; }
+
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+
+  /* Sidebar */
+  .side { background: var(--side); border-right: 1px solid var(--border);
+    padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: 100vh; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 2px 6px; }
+  .brand .logo { width: 30px; height: 30px; }
+  .brand .logo img { width: 100%; height: 100%; display: block; }
+  .brand .name { font-size: 16px; font-weight: 650; letter-spacing: .2px; }
+  .proj { padding: 0 6px; }
+  .proj .pname { color: var(--muted); font-size: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+    font-size: 12px; color: var(--good); background: rgba(63,185,80,.12);
+    border: 1px solid rgba(63,185,80,.25); padding: 3px 10px; border-radius: 999px; }
+  .pill .d { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
+  nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 11px;
+    border-radius: 9px; color: var(--muted); cursor: pointer; user-select: none;
+    border: 1px solid transparent; font-size: 14px; }
+  .nav-item svg { width: 17px; height: 17px; flex: none; opacity: .85; }
+  .nav-item:hover { color: var(--text); background: var(--surface); }
+  .nav-item.active { color: var(--text); background: var(--surface);
+    border-color: var(--border2); box-shadow: inset 2px 0 0 var(--accent); }
+  .side .foot { margin-top: auto; color: var(--faint); font-size: 11px; padding: 0 6px; }
+
+  /* Main */
+  main { min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 22px 30px 6px; }
+  .topbar h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: .2px; }
+  .topbar .spacer { flex: 1; }
+  .live { display: inline-flex; align-items: center; gap: 7px; color: var(--good); font-size: 12px; }
+  .live .d { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
+  .content { padding: 16px 30px 40px; max-width: 1180px; }
+
+  .hero { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px 28px; margin-bottom: 18px; }
+  .hero h2 { margin: 0 0 8px; font-size: 30px; font-weight: 700; }
+  .hero p { margin: 0 0 14px; color: var(--muted); max-width: 760px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
+  .card .value { font-size: 30px; font-weight: 700; margin-top: 8px; line-height: 1.1; }
+  .card .value.accent { color: var(--accent); }
+  .card .sub { color: var(--faint); font-size: 12px; margin-top: 4px; }
+
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .panel + .panel, .cards + .panel, .panel + .cards, .section + .section { margin-top: 18px; }
+  .panel .head { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 13px;
+    text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+  .panel .body { padding: 18px 20px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 11px 20px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  td.num { color: var(--accent2); }
+  code { background: var(--surface2); padding: 1px 7px; border-radius: 6px; font-size: 12.5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  .search { display: flex; gap: 10px; margin-bottom: 16px; }
+  .search input { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 11px 16px; border-radius: 10px; font-size: 14px; outline: none; }
+  .search input::placeholder { color: var(--faint); }
+  .search input:focus { border-color: var(--accent); }
+  .search button { background: var(--accent); color: #00252b; border: none; padding: 0 20px;
+    border-radius: 10px; font-weight: 650; cursor: pointer; }
+
+  .hit { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
+  .hit .h { display: flex; gap: 10px; align-items: center; font-size: 12px; margin-bottom: 8px; }
+  .hit .kind { color: var(--accent); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .hit .src { color: var(--muted); }
+  .hit .score { margin-left: auto; color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .hit pre { margin: 0; white-space: pre-wrap; font-size: 12.5px; max-height: 130px; overflow: auto;
+    font-family: ui-monospace, Menlo, monospace; color: var(--text); }
+
+  .flags { display: flex; flex-direction: column; gap: 8px; }
+  .flag { font-size: 13.5px; padding: 11px 14px; border-radius: 10px; background: var(--surface2); border-left: 3px solid var(--faint); }
+  .flag b { display: block; margin-bottom: 2px; }
+  .flag.good { border-left-color: var(--good); }
+  .flag.warn { border-left-color: var(--warn); }
+
+  pre.raw { margin: 0; padding: 20px; white-space: pre-wrap; font-size: 12.5px; line-height: 1.7;
+    font-family: ui-monospace, Menlo, monospace; color: var(--muted); max-height: 70vh; overflow: auto; }
+
+  .actrow { display: flex; gap: 14px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .actrow:last-child { border-bottom: none; }
+  .actrow .t { color: var(--faint); font-variant-numeric: tabular-nums; width: 46px; flex: none; }
+  .actrow .a { color: var(--accent2); width: 90px; flex: none; }
+  .actrow .f { color: var(--text); }
+  .chartbox { padding: 10px 14px 6px; }
+  .barsh { display: flex; flex-direction: column; gap: 10px; }
+  .barh { display: grid; grid-template-columns: 130px 1fr 90px; align-items: center; gap: 12px; }
+  .barh-label { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: ui-monospace, Menlo, monospace; }
+  .barh-track { height: 12px; background: var(--surface2); border-radius: 6px; overflow: hidden; }
+  .barh-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+  .barh-val { text-align: right; color: var(--accent2); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .empty { color: var(--faint); padding: 22px; text-align: center; }
+  .muted { color: var(--muted); }
+  h3.sub { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><span class="logo"><img src="/logo-dark.svg" alt="" /></span><span class="name">PackMind</span></div>
+    <div class="proj">
+      <div class="pname" id="pname">—</div>
+      <span class="pill"><span class="d"></span> Healthy</span>
+    </div>
+    <nav id="nav"></nav>
+    <div class="foot">Loopback · token-protected</div>
+  </aside>
+  <main>
+    <div class="topbar">
+      <h1 id="title">Overview</h1>
+      <span class="spacer"></span>
+      <span class="live"><span class="d"></span> Live</span>
+    </div>
+    <div class="content" id="view"><div class="empty">Loading…</div></div>
+  </main>
+</div>
+<script>
+const TOKEN = "__TOKEN__";
+const api = (p) => fetch(p + (p.includes("?") ? "&" : "?") + "token=" + TOKEN).then(r => r.json());
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const money = (n) => "$" + (Number(n) || 0).toFixed(4);
+
+const ICON = {
+  overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+  insights: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-8"/><path d="M16 4h5v5"/></svg>',
+  map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>',
+  recall: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  solutions: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6l7-3z"/><path d="m9 11 2 2 4-4"/></svg>',
+  knowledge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19a2 2 0 0 1 2-2h13"/></svg>',
+  journal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>',
+};
+
+// ---- inline-SVG charts (zero dependency) --------------------------------
+function areaChart(values, opts) {
+  const o = Object.assign({ w: 760, h: 180, pad: 28, fmt: (v) => v }, opts || {});
+  if (!values.length) return '<div class="empty">No session data yet.</div>';
+  const { w, h, pad } = o;
+  const max = Math.max(...values, 1e-9);
+  const n = values.length;
+  const x = (i) => pad + (n === 1 ? (w - 2 * pad) / 2 : (i * (w - 2 * pad)) / (n - 1));
+  const y = (v) => h - pad - (v / max) * (h - 2 * pad);
+  const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
+  const line = "M" + pts.join(" L");
+  const area = `M${x(0).toFixed(1)},${(h - pad).toFixed(1)} L` + pts.join(" L") + ` L${x(n - 1).toFixed(1)},${(h - pad).toFixed(1)} Z`;
+  const grid = [0, 0.5, 1].map(f => {
+    const yy = (h - pad - f * (h - 2 * pad)).toFixed(1);
+    return `<line x1="${pad}" y1="${yy}" x2="${w - pad}" y2="${yy}" stroke="var(--border2)" stroke-dasharray="3 4"/>` +
+      `<text x="${pad - 6}" y="${(+yy + 4)}" text-anchor="end" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
+  }).join("");
+  const dots = values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="var(--accent)"><title>${esc(o.fmt(v))}</title></circle>`).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">
+    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="var(--accent)" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#ag)"/><path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>${dots}
+  </svg>`;
+}
+
+function barsH(rows, opts) {
+  const o = Object.assign({ fmt: (v) => v }, opts || {});
+  if (!rows.length) return '<div class="empty">No data yet.</div>';
+  const max = Math.max(...rows.map(r => r.value), 1e-9);
+  return `<div class="barsh">` + rows.map(r => `
+    <div class="barh">
+      <div class="barh-label" title="${esc(r.label)}">${esc(r.label)}</div>
+      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%"></div></div>
+      <div class="barh-val">${esc(o.fmt(r.value))}</div>
+    </div>`).join("") + `</div>`;
+}
+
+const SECTIONS = [
+  { id: "overview", title: "Overview", render: renderOverview },
+  { id: "insights", title: "Insights", render: renderInsights },
+  { id: "map", title: "Project Map", render: renderMap },
+  { id: "recall", title: "Recall", render: renderRecall },
+  { id: "solutions", title: "Solutions", render: renderSolutions },
+  { id: "knowledge", title: "Knowledge", render: renderKnowledge },
+  { id: "journal", title: "Journal", render: renderJournal },
+];
+
+let active = "overview";
+let timer = null;
+
+function buildNav() {
+  $("nav").innerHTML = SECTIONS.map(s =>
+    `<div class="nav-item" data-id="${s.id}">${ICON[s.id]}<span>${s.title}</span></div>`).join("");
+  document.querySelectorAll(".nav-item").forEach(el => el.onclick = () => go(el.dataset.id));
+}
+
+function go(id) {
+  active = id;
+  const sec = SECTIONS.find(s => s.id === id);
+  document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.id === id));
+  $("title").textContent = sec.title;
+  $("view").innerHTML = '<div class="empty">Loading…</div>';
+  sec.render();
+  if (timer) clearInterval(timer);
+  // Live-refresh the lightweight, frequently-changing sections.
+  if (id === "overview" || id === "insights") timer = setInterval(sec.render, 5000);
+}
+
+async function renderOverview() {
+  const [o, j, ins] = await Promise.all([api("/api/overview"), api("/api/journal"), api("/api/insights")]);
+  $("pname").textContent = o.project || "—";
+  const t = o.totals || {};
+  const acts = (j.text || "").split(/\r?\n/)
+    .map(l => l.match(/^\|\s*(\d{2}:\d{2})\s*\|\s*([^|]+?)\s*\|\s*`?([^|`]+?)`?\s*\|/))
+    .filter(Boolean).slice(-12).reverse();
+  const costs = (o.sessions || []).map(s => (s.inputCost || 0) + (s.outputCost || 0));
+  $("view").innerHTML = `
+    <div class="hero">
+      <h2>${esc(o.project || "PackMind")}</h2>
+      <p>A second brain for Claude Code: project memory, real token &amp; cost accounting, semantic recall, and active guardrails.</p>
+    </div>
+    <div class="cards">
+      <div class="card"><div class="label">Tokens saved</div><div class="value accent">~${(ins.estTokensSaved||0).toLocaleString()}</div>
+        <div class="sub">≈ ${money(ins.estCostSaved)} · ${t.dedupedReads || 0} re-reads avoided</div></div>
+      <div class="card"><div class="label">Total cost</div><div class="value">${money(o.cost)}</div>
+        <div class="sub">${(t.inputTokens||0).toLocaleString()} in / ${(t.outputTokens||0).toLocaleString()} out</div></div>
+      <div class="card"><div class="label">Files mapped</div><div class="value">${o.files}</div>
+        <div class="sub">${o.vectors.toLocaleString()} vectors indexed</div></div>
+      <div class="card"><div class="label">Sessions</div><div class="value">${t.sessions || 0}</div></div>
+    </div>
+    <div class="panel">
+      <div class="head">Cost per session</div>
+      <div class="body chartbox">${areaChart(costs, { fmt: (v) => "$" + v.toFixed(3) })}</div>
+    </div>
+    <div class="panel">
+      <div class="head">Recent activity</div>
+      <div class="body">${acts.length
+        ? acts.map(m => `<div class="actrow"><span class="t">${esc(m[1])}</span><span class="a">${esc(m[2])}</span><span class="f"><code>${esc(m[3])}</code></span></div>`).join("")
+        : '<div class="empty">No activity yet. Start a Claude Code session to see it here.</div>'}</div>
+    </div>`;
+}
+
+async function renderInsights() {
+  const [r, map] = await Promise.all([api("/api/insights"), api("/api/map")]);
+  const cov = r.mapCoverage === null ? "—" : Math.round(r.mapCoverage * 100) + "%";
+  // Aggregate token weight by top-level directory (client-side, from the map).
+  const byDir = {};
+  for (const e of map) {
+    const top = (e.section || "./").split("/")[0] + "/";
+    byDir[top] = (byDir[top] || 0) + e.tokens;
+  }
+  const dirRows = Object.entries(byDir)
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value).slice(0, 10);
+  $("view").innerHTML = `
+    <div class="cards">
+      <div class="card"><div class="label">Estimated saved</div><div class="value accent">${money(r.estCostSaved)}</div>
+        <div class="sub">~${(r.estTokensSaved||0).toLocaleString()} tokens · ${r.reReadsAvoided} re-reads avoided</div></div>
+      <div class="card"><div class="label">Map coverage</div><div class="value">${cov}</div>
+        <div class="sub">of reads hit a description</div></div>
+      <div class="card"><div class="label">Total cost</div><div class="value">${money(r.totalCost)}</div>
+        <div class="sub">${(r.inputTokens||0).toLocaleString()} in / ${(r.outputTokens||0).toLocaleString()} out</div></div>
+    </div>
+    <div class="panel">
+      <div class="head">Tokens by directory</div>
+      <div class="body">${barsH(dirRows, { fmt: (v) => "~" + (v >= 1000 ? (v / 1000).toFixed(1) + "k" : v) + " tok" })}</div>
+    </div>
+    ${(r.flags && r.flags.length) ? `<div class="panel"><div class="head">Notes</div><div class="body"><div class="flags">${
+      r.flags.map(f => `<div class="flag ${f.level}"><b>${f.level === "good" ? "✓" : "!"} ${esc(f.title)}</b>${esc(f.detail)}</div>`).join("")
+    }</div></div></div>` : ""}
+    <div class="panel"><div class="head">Heaviest files</div>
+      ${(r.topFiles && r.topFiles.length) ? `<table><thead><tr><th>File</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${
+        r.topFiles.map(f => `<tr><td><code>${esc(f.file)}</code></td><td class="num">${f.tokens}</td><td class="num">${money(f.cost)}</td></tr>`).join("")
+      }</tbody></table>` : '<div class="empty">No data yet.</div>'}</div>`;
+}
+
+let mapData = [];
+async function renderMap() {
+  mapData = await api("/api/map");
+  $("view").innerHTML = `
+    <div class="search"><input id="mq" placeholder="Filter files…" /></div>
+    <div class="panel" id="maptbl"></div>`;
+  const draw = () => {
+    const q = ($("mq").value || "").toLowerCase();
+    const rows = mapData.filter(r => !q || (r.section + r.file).toLowerCase().includes(q)).slice(0, 200);
+    $("maptbl").innerHTML = `<div class="head">${mapData.length} files tracked</div>` + (rows.length
+      ? `<table><thead><tr><th>File</th><th>Description</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${
+        rows.map(r => `<tr><td><code>${esc(r.section)}${esc(r.file)}</code></td><td class="muted">${esc(r.description)}</td><td class="num">${r.tokens}</td><td class="num">${money(r.cost)}</td></tr>`).join("")
+      }</tbody></table>` : '<div class="empty">No match.</div>');
+  };
+  $("mq").addEventListener("input", draw);
+  draw();
+}
+
+async function renderRecall() {
+  $("view").innerHTML = `
+    <div class="search">
+      <input id="rq" placeholder="Search project memory by meaning… (e.g. how is auth handled)" />
+      <button id="rgo">Search</button>
+    </div>
+    <div id="rhits"><div class="empty">Type a query and hit Search.</div></div>`;
+  const run = async () => {
+    const q = $("rq").value.trim();
+    if (!q) return;
+    $("rhits").innerHTML = '<div class="empty">Searching…</div>';
+    const { hits } = await api("/api/recall?q=" + encodeURIComponent(q));
+    $("rhits").innerHTML = (hits && hits.length)
+      ? hits.map(h => `<div class="hit"><div class="h"><span class="kind">${esc(h.kind)}</span><span class="src">${esc(h.source)}</span><span class="score">${(h.score||0).toFixed(2)}</span></div><pre>${esc((h.text||"").slice(0, 600))}</pre></div>`).join("")
+      : '<div class="empty">No matches. Run <code>packmind index</code> if you haven\'t yet.</div>';
+  };
+  $("rgo").onclick = run;
+  $("rq").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+  $("rq").focus();
+}
+
+async function renderSolutions() {
+  const sols = await api("/api/solutions");
+  $("view").innerHTML = `<div class="panel">${sols.length
+    ? `<table><thead><tr><th>Error</th><th>Fix</th><th>Tags</th><th class="num">Seen</th></tr></thead><tbody>${
+      sols.map(s => `<tr><td>${esc(s.error)}</td><td class="muted">${esc(s.fix)}</td><td class="muted">${(s.tags||[]).map(esc).join(", ")}</td><td class="num">${s.occurrences||1}×</td></tr>`).join("")
+    }</tbody></table>` : '<div class="empty">No recorded solutions yet. Claude logs fixes here with the <code>record_solution</code> tool.</div>'}</div>`;
+}
+
+async function renderKnowledge() {
+  const k = await api("/api/knowledge");
+  $("view").innerHTML = `<div class="panel"><pre class="raw">${esc((k.text || "").trim() || "knowledge.md is empty.")}</pre></div>`;
+}
+
+async function renderJournal() {
+  const j = await api("/api/journal");
+  $("view").innerHTML = `<div class="panel"><pre class="raw">${esc((j.text || "").trim() || "journal.md is empty.")}</pre></div>`;
+}
+
+buildNav();
+go("overview");
+</script>
+</body>
+</html>

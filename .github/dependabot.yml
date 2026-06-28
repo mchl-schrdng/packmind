@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Keep GitHub Actions pinned versions current. Low-noise, monthly.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
