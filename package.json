@@ -35,6 +35,9 @@
     "onlyBuiltDependencies": ["esbuild", "onnxruntime-node", "sharp", "protobufjs"]
   },
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "author": "Michael Scherding",
   "repository": {
     "type": "git",
