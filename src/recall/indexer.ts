@@ -82,9 +82,12 @@ export async function refreshFromQueue(
   if (queued.length === 0) return 0;
   const store = new VectorStore(brain(projectRoot).vectors, config.recall.embedModel);
 
-  const present = queued.filter((rel) => fs.existsSync(path.join(projectRoot, rel)) || rel.startsWith(".packmind/"));
-  for (const rel of queued) if (!present.includes(rel)) store.removeSource(rel);
+  // Clear every queued source's old embeddings up-front. Whatever still has
+  // content is re-added below; a deleted OR emptied file (which yields no
+  // chunks) therefore stays gone instead of lingering in recall results.
+  for (const rel of queued) store.removeSource(rel);
 
+  const present = queued.filter((rel) => fs.existsSync(path.join(projectRoot, rel)));
   const chunks = collectChunks(projectRoot, config, present);
   const records = await embedChunks(embedder, chunks);
   store.upsertBySource(records);

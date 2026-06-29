@@ -28,13 +28,27 @@ export async function runScan(opts: { check?: boolean; exact?: boolean } = {}): 
       return;
     }
     // Exact counts via Anthropic's count-tokens API, with a per-file fallback to
-    // the local estimate on any failure (network error, rate limit).
+    // the local estimate on any failure (network error, rate limit, timeout).
+    let exactHits = 0;
+    let fellBack = 0;
     const counter: TokenCounter = async (content, hint) => {
       const exact = await countTokensExact(content, config.model);
-      return exact ?? estimateTokens(content, hint);
+      if (exact === null) {
+        fellBack++;
+        return estimateTokens(content, hint);
+      }
+      exactHits++;
+      return exact;
     };
     const count = await scanProjectWith(projectRoot, config, counter);
-    console.log(chalk.cyan(`✓ Mapped ${count} files into map.md (exact token counts)`));
+    // Report honestly: only claim "exact" for the files that actually got it.
+    if (exactHits === 0) {
+      console.log(chalk.yellow(`✓ Mapped ${count} files into map.md (exact unavailable — all estimated)`));
+    } else if (fellBack > 0) {
+      console.log(chalk.cyan(`✓ Mapped ${count} files into map.md (${exactHits} exact, ${fellBack} estimated)`));
+    } else {
+      console.log(chalk.cyan(`✓ Mapped ${count} files into map.md (exact token counts)`));
+    }
     return;
   }
 

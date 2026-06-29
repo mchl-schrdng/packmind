@@ -59,7 +59,7 @@ export function walkProject(projectRoot: string, config: Config): WalkedFile[] {
         walk(abs);
       } else if (entry.isFile()) {
         if (BINARY_EXT.has(path.extname(entry.name).toLowerCase())) continue;
-        if (looksSecret(entry.name, c.extraSecretGlobs)) continue;
+        if (looksSecret(entry.name, c.extraSecretGlobs, rel)) continue;
         try {
           if (fs.statSync(abs).size > 1_048_576) continue;
         } catch {

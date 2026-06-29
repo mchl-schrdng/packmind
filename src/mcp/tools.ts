@@ -32,12 +32,21 @@ export async function toolRecall(ctx: ToolContext, query: string): Promise<strin
 export function toolRemember(ctx: ToolContext, note: string, kind = "Notes"): string {
   const heading = ["Preferences", "Decisions", "Never Do", "Notes"].includes(kind) ? kind : "Notes";
   const file = brain(ctx.projectRoot).knowledge;
-  const existing = readTextOr(file);
-  // Append under the heading if present; otherwise create it.
-  if (new RegExp(`^##\\s+${heading}\\b`, "m").test(existing)) {
-    appendLine(file, `\n<!-- ${heading} -->\n- ${new Date().toISOString().slice(0, 10)}: ${note}\n`);
+  const entry = `- ${new Date().toISOString().slice(0, 10)}: ${note}`;
+  const lines = readTextOr(file).split(/\r?\n/);
+
+  // Insert directly UNDER the matching `## Heading` (before the next `##`), so
+  // the entry is actually parsed back (e.g. parseNeverDo reads only that
+  // section). Appending at EOF would land it under the wrong heading.
+  const headIdx = lines.findIndex((l) => new RegExp(`^##\\s+${heading}\\b`, "i").test(l));
+  if (headIdx === -1) {
+    const text = readTextOr(file).replace(/\s*$/, "");
+    writeText(file, `${text}\n\n## ${heading}\n\n${entry}\n`);
   } else {
-    appendLine(file, `\n## ${heading}\n\n- ${new Date().toISOString().slice(0, 10)}: ${note}\n`);
+    let insertAt = headIdx + 1;
+    if (lines[insertAt] === "") insertAt++; // keep one blank line after the heading
+    lines.splice(insertAt, 0, entry);
+    writeText(file, lines.join("\n"));
   }
   enqueue(ctx.projectRoot, ".packmind/knowledge.md");
   return `Recorded under "${heading}".`;

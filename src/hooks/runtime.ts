@@ -210,11 +210,21 @@ function toRe(glob: string): RegExp {
   const body = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".");
   return new RegExp(`^${body}$`, "i");
 }
+function pathRe(glob: string): RegExp {
+  const body = glob
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*/g, " ")
+    .replace(/\*/g, "[^/]*")
+    .replace(/ /g, ".*")
+    .replace(/\?/g, ".");
+  return new RegExp(`^${body}$`, "i");
+}
 const SECRET_RES = SECRET_GLOBS.map(toRe);
-export function looksSecret(file: string, extra: string[] = []): boolean {
+export function looksSecret(file: string, extra: string[] = [], relPath?: string): boolean {
   const base = path.basename(file);
   if (SECRET_RES.some((re) => re.test(base))) return true;
-  return extra.map(toRe).some((re) => re.test(base));
+  const full = (relPath ?? file).split(path.sep).join("/");
+  return extra.some((g) => toRe(g).test(base) || pathRe(g).test(full));
 }
 
 // --- path guard (mirror of guard/path-guard.ts) -----------------------------
@@ -288,7 +298,7 @@ export function evaluateWrite(
   input: { relPath: string; content: string; blockSecrets: boolean; extraSecretGlobs: string[] },
 ): { findings: Finding[]; block: boolean } {
   const findings: Finding[] = [];
-  const isSecret = looksSecret(path.basename(input.relPath), input.extraSecretGlobs);
+  const isSecret = looksSecret(input.relPath, input.extraSecretGlobs, input.relPath);
   for (const rule of rules ?? []) {
     const conditions: boolean[] = [];
     if (rule.secretFile) conditions.push(isSecret);
@@ -360,9 +370,11 @@ export function readStdin(): Promise<string> {
   return new Promise((resolve) => {
     const chunks: Buffer[] = [];
     let done = false;
+    let timer: NodeJS.Timeout | undefined;
     const finish = () => {
       if (done) return;
       done = true;
+      if (timer) clearTimeout(timer); // don't let the safety timer keep the process alive
       resolve(chunks.length ? Buffer.concat(chunks).toString("utf8") : "{}");
     };
     try {
@@ -372,7 +384,10 @@ export function readStdin(): Promise<string> {
     } catch {
       finish();
     }
-    setTimeout(finish, 4000);
+    // Safety fallback only. `unref()` ensures the process can exit the instant
+    // stdin ends, instead of lingering ~4s for this timer on every hook.
+    timer = setTimeout(finish, 4000);
+    timer.unref?.();
   });
 }
 export function parseInput(raw: string): Record<string, any> {

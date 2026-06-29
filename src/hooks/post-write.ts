@@ -67,7 +67,7 @@ async function main(): Promise<void> {
   const abs = path.resolve(root, filePath);
   const rel = path.relative(root, abs).split(path.sep).join("/");
   if (rel.startsWith(".packmind/")) process.exit(0);
-  if (looksSecret(path.basename(filePath), cfg.extraSecretGlobs)) process.exit(0);
+  if (looksSecret(filePath, cfg.extraSecretGlobs, rel)) process.exit(0);
 
   let content = "";
   try {

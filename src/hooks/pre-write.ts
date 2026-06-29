@@ -18,7 +18,13 @@ import {
 
 function pendingContent(input: Record<string, any>): string {
   const ti = input.tool_input ?? {};
-  return [ti.content, ti.new_string, ti.new_str].filter((x) => typeof x === "string").join("\n");
+  const parts = [ti.content, ti.new_string, ti.new_str];
+  // MultiEdit carries its changes in edits[].new_string — include them so
+  // content rules and Never-Do guards aren't bypassed by MultiEdit.
+  if (Array.isArray(ti.edits)) {
+    for (const e of ti.edits) parts.push(e?.new_string, e?.new_str);
+  }
+  return parts.filter((x) => typeof x === "string").join("\n");
 }
 
 async function main(): Promise<void> {
