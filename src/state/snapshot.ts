@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import { brain } from "./files.js";
 import { userRoot } from "../util/platform.js";
 
@@ -8,8 +9,13 @@ export function backupsRoot(): string {
   return path.join(userRoot(), "backups");
 }
 
+/** Per-project backup namespace. Includes a short hash of the FULL resolved
+ * path so two projects sharing a basename (e.g. two "app" folders) never share
+ * a backup namespace. */
 function projectBackupDir(projectRoot: string): string {
-  return path.join(backupsRoot(), path.basename(path.resolve(projectRoot)));
+  const resolved = path.resolve(projectRoot);
+  const hash = crypto.createHash("sha1").update(resolved).digest("hex").slice(0, 8);
+  return path.join(backupsRoot(), `${path.basename(resolved)}-${hash}`);
 }
 
 function timestamp(): string {
@@ -51,7 +57,15 @@ export function listSnapshots(projectRoot: string): string[] {
 export function restoreSnapshot(projectRoot: string, label: string): boolean {
   const src = path.join(projectBackupDir(projectRoot), label);
   if (!fs.existsSync(src)) return false;
-  fs.cpSync(src, brain(projectRoot).dir, { recursive: true });
+  // Restore EXACTLY: clear the current brain first so files created after the
+  // snapshot (stale policy.json, usage.json, archives, vectors) don't survive.
+  const dest = brain(projectRoot).dir;
+  try {
+    fs.rmSync(dest, { recursive: true, force: true });
+  } catch {
+    /* nothing to clear */
+  }
+  fs.cpSync(src, dest, { recursive: true });
   return true;
 }
 

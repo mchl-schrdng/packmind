@@ -119,6 +119,9 @@ update` and stays forward-compatible. Notable keys:
 - `cost.exact` — when `scan` reconciles to exact counts: `auto` (exact when
   `ANTHROPIC_API_KEY` is set) | `never` | `always`. You can always force it per-run
   with `packmind scan --exact`. Hooks always use the fast local estimate.
+- `cost.prices` — override the built-in (approximate) per-model rates, e.g.
+  `{ "claude-opus-4-8": { "inputPerMTok": 15, "outputPerMTok": 75 } }`. The
+  defaults are best-effort; set this to your account's actual pricing.
 - `recall.enabled` / `recall.embedModel` — local embeddings; fully offline.
 - `guard.blockSecrets` — set `true` to hard-block writes to secret files.
 - `map.respectGitignore`, `map.extraSecretGlobs` — control what gets mapped.

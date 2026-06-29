@@ -247,11 +247,17 @@ function normModel(m: string): string {
   if (s.includes("fable")) return "claude-fable-5";
   return "claude-opus-4-8";
 }
-export function inputCost(model: string, tokens: number): number {
-  return (tokens / 1_000_000) * (PRICES[normModel(model)] ?? PRICES["claude-opus-4-8"]).i;
+export type PriceOverrides = Record<string, { inputPerMTok: number; outputPerMTok: number }>;
+function rate(model: string, ov?: PriceOverrides): { i: number; o: number } {
+  const o = ov?.[model] ?? ov?.[normModel(model)];
+  if (o) return { i: o.inputPerMTok, o: o.outputPerMTok };
+  return PRICES[normModel(model)] ?? PRICES["claude-opus-4-8"];
 }
-export function outputCost(model: string, tokens: number): number {
-  return (tokens / 1_000_000) * (PRICES[normModel(model)] ?? PRICES["claude-opus-4-8"]).o;
+export function inputCost(model: string, tokens: number, ov?: PriceOverrides): number {
+  return (tokens / 1_000_000) * rate(model, ov).i;
+}
+export function outputCost(model: string, tokens: number, ov?: PriceOverrides): number {
+  return (tokens / 1_000_000) * rate(model, ov).o;
 }
 
 // --- guard policy (mirror of guard/policy.ts) -------------------------------
@@ -336,6 +342,7 @@ export interface HookConfig {
   extraSecretGlobs: string[];
   blockSecrets: boolean;
   recallEnabled: boolean;
+  prices: PriceOverrides;
 }
 export function hookConfig(): HookConfig {
   const raw = readJson<any>(brainPath("config.json"), {});
@@ -344,6 +351,7 @@ export function hookConfig(): HookConfig {
     extraSecretGlobs: Array.isArray(raw?.map?.extraSecretGlobs) ? raw.map.extraSecretGlobs : [],
     blockSecrets: raw?.guard?.blockSecrets === true,
     recallEnabled: raw?.recall?.enabled !== false,
+    prices: raw?.cost?.prices && typeof raw.cost.prices === "object" ? raw.cost.prices : {},
   };
 }
 

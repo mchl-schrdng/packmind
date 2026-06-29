@@ -24,9 +24,10 @@ import {
   readStdin,
   emitContext,
   type MapEntry,
+  type PriceOverrides,
 } from "./runtime.js";
 
-function refreshMap(rel: string, content: string, model: string): number {
+function refreshMap(rel: string, content: string, model: string, prices: PriceOverrides): number {
   const map = parseMap(readText(brainPath("map.md")));
   const dir = path.posix.dirname(rel);
   const section = dir === "." ? "./" : dir + "/";
@@ -36,7 +37,7 @@ function refreshMap(rel: string, content: string, model: string): number {
     file,
     description: describeLite(file, content),
     tokens,
-    cost: inputCost(model, tokens),
+    cost: inputCost(model, tokens, prices),
   };
   if (!map.has(section)) map.set(section, []);
   const list = map.get(section)!;
@@ -76,7 +77,7 @@ async function main(): Promise<void> {
   }
 
   const action = (input.tool_name as string) || "edit";
-  const tokens = content ? refreshMap(rel, content, cfg.model) : 0;
+  const tokens = content ? refreshMap(rel, content, cfg.model, cfg.prices) : 0;
 
   appendLine(
     brainPath("journal.md"),
@@ -90,7 +91,7 @@ async function main(): Promise<void> {
   session.writes.push({ file: rel, action, tokens, at: new Date().toISOString() });
   session.editCounts[rel] = (session.editCounts[rel] ?? 0) + 1;
   session.outputTokens += tokens;
-  session.outputCost += outputCost(cfg.model, tokens);
+  session.outputCost += outputCost(cfg.model, tokens, cfg.prices);
   writeSession(session);
 
   if (session.editCounts[rel] >= 4) {

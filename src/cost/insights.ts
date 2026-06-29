@@ -55,7 +55,7 @@ export function computeInsights(projectRoot: string, config: Config): InsightsRe
   let mapTokens = 0;
   for (const [section, list] of map) {
     for (const e of list) {
-      const cost = e.cost ?? inputCost(config.model, e.tokens);
+      const cost = e.cost ?? inputCost(config.model, e.tokens, config.cost.prices);
       entries.push({ file: section + e.file, tokens: e.tokens, cost });
       mapTokens += e.tokens;
     }
@@ -68,7 +68,7 @@ export function computeInsights(projectRoot: string, config: Config): InsightsRe
   // Conservative savings estimate: map hits avoid ~half a file read on average;
   // each deduped re-read avoids a whole one.
   const estTokensSaved = Math.round(t.mapHits * avgFileTokens * 0.5 + t.dedupedReads * avgFileTokens);
-  const estCostSaved = inputCost(config.model, estTokensSaved);
+  const estCostSaved = inputCost(config.model, estTokensSaved, config.cost.prices);
 
   const flags: Flag[] = [];
   if (t.dedupedReads > 0) {

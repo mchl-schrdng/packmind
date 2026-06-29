@@ -8,6 +8,8 @@ export function homeDirectory(): string {
 }
 
 /** PackMind's user-global cache/config root (models, registry). */
+/** PackMind's user-global cache/config root. Overridable via PACKMIND_HOME so
+ * tests (and isolated installs) never touch the real ~/.packmind. */
 export function userRoot(): string {
-  return `${os.homedir()}/.packmind`;
+  return process.env.PACKMIND_HOME || `${os.homedir()}/.packmind`;
 }

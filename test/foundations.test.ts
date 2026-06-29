@@ -58,8 +58,12 @@ describe("[P2] scan --check detects content changes, not just count", () => {
   it("flags staleness when a file's content changes (file count unchanged)", () => {
     const { dir, config } = project();
     scanProject(dir, config);
-    // Same number of files, but one grows substantially → tokens/desc change.
-    fs.writeFileSync(path.join(dir, "src", "a.ts"), "// changed\n".repeat(80));
+    // Same number of files, but one is edited after the scan. Force a clearly
+    // later mtime so the test doesn't depend on sub-millisecond timing.
+    const f = path.join(dir, "src", "a.ts");
+    fs.writeFileSync(f, "// changed\n".repeat(80));
+    const future = new Date(Date.now() + 5000);
+    fs.utimesSync(f, future, future);
     expect(mapIsStale(dir, config)).toBe(true);
   });
 

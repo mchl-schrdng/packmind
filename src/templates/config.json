@@ -30,7 +30,8 @@
     "extraSecretGlobs": []
   },
   "cost": {
-    "exact": "auto"
+    "exact": "auto",
+    "prices": {}
   },
   "recall": {
     "enabled": true,

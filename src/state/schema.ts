@@ -21,6 +21,8 @@ export interface Config {
   cost: {
     /** "auto": exact when ANTHROPIC_API_KEY present, else estimate. */
     exact: "auto" | "never" | "always";
+    /** Per-model USD/Mtok overrides for the built-in pricing defaults. */
+    prices: Record<string, { inputPerMTok: number; outputPerMTok: number }>;
   };
   recall: {
     enabled: boolean;
@@ -52,7 +54,7 @@ export const DEFAULT_CONFIG: Config = {
     ],
     extraSecretGlobs: [],
   },
-  cost: { exact: "auto" },
+  cost: { exact: "auto", prices: {} },
   recall: {
     enabled: true,
     embedModel: "Xenova/all-MiniLM-L6-v2",

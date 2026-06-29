@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
   const cfg = hookConfig();
   const tokens = estimateTokens(content, filePath);
-  const cost = inputCost(cfg.model, tokens);
+  const cost = inputCost(cfg.model, tokens, cfg.prices);
   // Account the delta vs. whatever we previously attributed to this read.
   session.inputTokens += tokens - rec.tokens;
   session.inputCost += cost - rec.cost;

@@ -26,7 +26,7 @@ function pushEntry(
   rel: string,
   content: string,
   tokens: number,
-  model: string,
+  config: Config,
 ): void {
   const key = sectionFor(rel);
   if (!sections.has(key)) sections.set(key, []);
@@ -34,7 +34,7 @@ function pushEntry(
     file: path.posix.basename(rel),
     description: describeFile(rel, content),
     tokens,
-    cost: inputCost(model, tokens),
+    cost: inputCost(config.model, tokens, config.cost.prices),
   });
 }
 
@@ -57,7 +57,7 @@ export function buildMap(projectRoot: string, config: Config): { content: string
     } catch {
       continue;
     }
-    pushEntry(sections, rel, content, estimateTokens(content, rel), config.model);
+    pushEntry(sections, rel, content, estimateTokens(content, rel), config);
   }
   return finalize(sections);
 }
@@ -77,7 +77,7 @@ export async function buildMapWith(
     } catch {
       continue;
     }
-    pushEntry(sections, rel, content, await counter(content, rel), config.model);
+    pushEntry(sections, rel, content, await counter(content, rel), config);
   }
   return finalize(sections);
 }
@@ -98,14 +98,14 @@ export async function scanProjectWith(
   return fileCount;
 }
 
-/** Drop the auto-generated "_Maintained by … updated <ts>_" line so two builds
- * of unchanged sources compare equal. */
-function normalizeMap(content: string): string {
-  return content
-    .split(/\r?\n/)
-    .filter((l) => !/^_Maintained by PackMind/.test(l))
-    .join("\n")
-    .trim();
+/** The set of project-relative file paths recorded in a map.md. */
+function mappedFiles(content: string): Set<string> {
+  const files = new Set<string>();
+  for (const [section, list] of parseMap(content)) {
+    const prefix = section === "./" ? "" : section;
+    for (const e of list) files.add(prefix + e.file);
+  }
+  return files;
 }
 
 export function countMapEntries(content: string): number {
@@ -114,10 +114,30 @@ export function countMapEntries(content: string): number {
   return n;
 }
 
-/** True when map.md no longer reflects the project — compares full content
- * (descriptions, tokens, cost, file set), not just the file count. */
+/** True when map.md no longer reflects the project. Detects added/removed files
+ * and any source modified after the map was written (mtime-based), so it stays
+ * correct whether the map was built with estimated OR exact token counts. */
 export function mapIsStale(projectRoot: string, config: Config): boolean {
-  const fresh = normalizeMap(buildMap(projectRoot, config).content);
-  const current = normalizeMap(readTextOr(brain(projectRoot).map));
-  return fresh !== current;
+  const mapPath = brain(projectRoot).map;
+  let mapMtime: number;
+  try {
+    mapMtime = fs.statSync(mapPath).mtimeMs;
+  } catch {
+    return true; // no map at all → stale
+  }
+
+  const recorded = mappedFiles(readTextOr(mapPath));
+  const onDisk = new Set<string>();
+  for (const { abs, rel } of walkProject(projectRoot, config)) {
+    onDisk.add(rel);
+    try {
+      if (fs.statSync(abs).mtimeMs > mapMtime) return true; // changed since scan
+    } catch {
+      /* unreadable — skip */
+    }
+  }
+
+  if (recorded.size !== onDisk.size) return true;
+  for (const f of onDisk) if (!recorded.has(f)) return true;
+  return false;
 }
