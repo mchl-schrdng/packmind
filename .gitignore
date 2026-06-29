@@ -7,10 +7,10 @@ coverage/
 *.tmp.*
 
 # PackMind dogfooding its own repo — not part of the source tree
+# (CLAUDE.md itself IS committed — it's the project's hand-written dev guide)
 .packmind/
 .mcp.json
 .claude/
-/CLAUDE.md
 .wolf/
 
 # PackMind per-developer state (not committed in consuming projects):
