@@ -39,3 +39,56 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  audit:
+    name: dependency CVE audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Gate on the production/shipped dependency tree (high+ fails the build).
+      - name: Audit production dependencies
+        run: pnpm audit --prod --audit-level=high
+      # Full tree (incl. dev toolchain) is informational only — never blocks.
+      - name: Audit full tree (informational)
+        run: pnpm audit || true
+
+  coverage:
+    name: coverage badge
+    # Only refresh the committed badge on pushes to main (not PRs/forks).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Run coverage
+        run: pnpm test:coverage
+      - name: Regenerate badge
+        run: pnpm coverage:badge
+      - name: Commit badge if changed
+        run: |
+          if ! git diff --quiet -- badges/coverage.svg; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add badges/coverage.svg
+            git commit -m "chore: update coverage badge [skip ci]"
+            git push
+          else
+            echo "coverage badge unchanged"
+          fi

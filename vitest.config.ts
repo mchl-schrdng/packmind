@@ -18,5 +18,30 @@ export default defineConfig({
       },
     },
   ],
-  test: { include: ["test/**/*.test.ts"], environment: "node", setupFiles: ["test/setup.ts"] },
+  test: {
+    include: ["test/**/*.test.ts"],
+    environment: "node",
+    setupFiles: ["test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary", "lcov"],
+      reportsDirectory: "coverage",
+      // Measure the library code we actually ship/run. The standalone hook
+      // bundle (src/hooks/*, except its tested runtime) runs out-of-process and
+      // isn't imported by the suite, so it would only dilute the number.
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/bin/**",
+        "src/hooks/session-start.ts",
+        "src/hooks/prompt-submit.ts",
+        "src/hooks/pre-read.ts",
+        "src/hooks/post-read.ts",
+        "src/hooks/pre-write.ts",
+        "src/hooks/post-write.ts",
+        "src/hooks/stop.ts",
+        "src/dashboard/**",
+        "src/mcp/server.ts",
+      ],
+    },
+  },
 });

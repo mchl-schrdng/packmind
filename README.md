@@ -11,6 +11,9 @@
 
 <p align="center">
   <a href="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml"><img src="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="badges/coverage.svg"><img src="badges/coverage.svg" alt="Coverage" /></a>
+  <a href="https://github.com/mchl-schrdng/packmind/actions/workflows/codeql.yml"><img src="https://github.com/mchl-schrdng/packmind/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
+  <a href="https://www.npmjs.com/package/packmind"><img src="https://img.shields.io/npm/v/packmind.svg" alt="npm" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
   <img src="https://img.shields.io/badge/Node.js-20%2B-green.svg" alt="Node.js 20+" />
 </p>
@@ -131,6 +134,21 @@ update` and stays forward-compatible. Notable keys:
 Embeddings run locally via an on-device model cached under `~/.packmind/models`;
 your code is never sent anywhere for recall. The only optional network call is
 Anthropic's count-tokens endpoint, used solely when you enable exact counting.
+
+## Security
+
+- **Dependency CVEs** are scanned on every CI run (`pnpm audit`): the build gates
+  on the core/shipped tree at `--audit-level=high`; a full-tree audit runs as
+  informational.
+- **Core dependencies carry no known high/critical advisories.** The only source
+  of transitive advisories is the **optional** local-recall dependency
+  (`@xenova/transformers`), which bundles an older ML runtime. It is never
+  required — install without it (`npm install packmind --omit=optional`) for a
+  CVE-clean tree, or set `recall.enabled: false`. Migrating recall to the
+  maintained `@huggingface/transformers` is tracked future work.
+- **Code scanning** via CodeQL runs when the repository is public (or has GitHub
+  Advanced Security); the workflow is skipped, not failed, otherwise.
+- Found something? See [the repo issues](https://github.com/mchl-schrdng/packmind/issues).
 
 ## Requirements
 
