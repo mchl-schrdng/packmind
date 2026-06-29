@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   requireState,
   projectRoot,
+  confineToRoot,
   brainPath,
   readText,
   readSession,
@@ -30,6 +31,9 @@ async function main(): Promise<void> {
   const filePath = input?.tool_input?.file_path as string | undefined;
   if (!filePath) process.exit(0);
 
+  // Confine to the project: ignore reads of files outside the root so they
+  // can't pollute the map/journal or skew accounting.
+  if (confineToRoot(root, filePath) === null) process.exit(0);
   const abs = path.resolve(root, filePath);
   const rel = path.relative(root, abs).split(path.sep).join("/");
   if (rel.startsWith(".packmind/")) process.exit(0);

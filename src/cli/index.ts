@@ -27,7 +27,8 @@ export function createProgram(): Command {
   program
     .command("scan")
     .description("Rebuild the project map (map.md)")
-    .option("--check", "Exit 1 if the map is stale")
+    .option("--check", "Exit 1 if the map is stale (compares content, not just count)")
+    .option("--exact", "Reconcile token counts via Anthropic count-tokens (needs ANTHROPIC_API_KEY)")
     .action((o) => runScan(o));
 
   program.command("status").description("Token usage, dollar cost, and project health").action(runStatus);

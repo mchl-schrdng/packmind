@@ -2,6 +2,7 @@ import * as path from "node:path";
 import {
   requireState,
   projectRoot,
+  confineToRoot,
   brainPath,
   readJson,
   hookConfig,
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   const input = parseInput(await readStdin());
   const filePath = input?.tool_input?.file_path as string | undefined;
   if (!filePath) process.exit(0);
+  if (confineToRoot(root, filePath) === null) process.exit(0);
 
   const rel = path.relative(root, path.resolve(root, filePath)).split(path.sep).join("/");
   const content = pendingContent(input);

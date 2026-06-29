@@ -3,6 +3,7 @@ import * as path from "node:path";
 import {
   requireState,
   projectRoot,
+  confineToRoot,
   brainPath,
   readText,
   writeText,
@@ -61,6 +62,7 @@ async function main(): Promise<void> {
   const filePath = ti.file_path as string | undefined;
   if (!filePath) process.exit(0);
 
+  if (confineToRoot(root, filePath) === null) process.exit(0);
   const abs = path.resolve(root, filePath);
   const rel = path.relative(root, abs).split(path.sep).join("/");
   if (rel.startsWith(".packmind/")) process.exit(0);

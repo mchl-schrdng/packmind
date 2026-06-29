@@ -64,7 +64,8 @@ Registered automatically in `.mcp.json`. Claude can call:
 
 ```
 packmind init             Set up .packmind/, hooks, and the MCP server
-packmind scan [--check]   Rebuild the project map (exit 1 on --check if stale)
+packmind scan [--check]   Rebuild the project map (--check exits 1 if stale; content-aware)
+packmind scan --exact     Reconcile token counts via Anthropic count-tokens (needs ANTHROPIC_API_KEY)
 packmind index            Build the local semantic recall index
 packmind recall <query>   Search project memory from the terminal
 packmind solutions <term> Search recorded fixes
@@ -115,7 +116,9 @@ No persistent process, no open ports, no state to leak.
 update` and stays forward-compatible. Notable keys:
 
 - `model` — drives cost pricing (`claude-opus-4-8` by default).
-- `cost.exact` — `auto` (exact when `ANTHROPIC_API_KEY` is set) | `never` | `always`.
+- `cost.exact` — when `scan` reconciles to exact counts: `auto` (exact when
+  `ANTHROPIC_API_KEY` is set) | `never` | `always`. You can always force it per-run
+  with `packmind scan --exact`. Hooks always use the fast local estimate.
 - `recall.enabled` / `recall.embedModel` — local embeddings; fully offline.
 - `guard.blockSecrets` — set `true` to hard-block writes to secret files.
 - `map.respectGitignore`, `map.extraSecretGlobs` — control what gets mapped.

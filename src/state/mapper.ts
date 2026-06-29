@@ -14,6 +14,40 @@ function sectionFor(rel: string): string {
   return dir === "." ? "./" : dir + "/";
 }
 
+/** Counts tokens for a file's content. Estimate by default; the exact path
+ * (Anthropic count-tokens) is injected so it stays out of the hot path and is
+ * testable. */
+export type TokenCounter = (content: string, hint: string) => Promise<number>;
+
+const estimateCounter: TokenCounter = async (content, hint) => estimateTokens(content, hint);
+
+function pushEntry(
+  sections: Map<string, MapEntry[]>,
+  rel: string,
+  content: string,
+  tokens: number,
+  model: string,
+): void {
+  const key = sectionFor(rel);
+  if (!sections.has(key)) sections.set(key, []);
+  sections.get(key)!.push({
+    file: path.posix.basename(rel),
+    description: describeFile(rel, content),
+    tokens,
+    cost: inputCost(model, tokens),
+  });
+}
+
+function finalize(sections: Map<string, MapEntry[]>): { content: string; fileCount: number } {
+  let fileCount = 0;
+  for (const [, list] of sections) fileCount += list.length;
+  return {
+    content: serializeMap(sections, { fileCount, updated: new Date().toISOString() }),
+    fileCount,
+  };
+}
+
+/** Build the map with fast local estimates (synchronous, no network). */
 export function buildMap(projectRoot: string, config: Config): { content: string; fileCount: number } {
   const sections = new Map<string, MapEntry[]>();
   for (const { abs, rel } of walkProject(projectRoot, config)) {
@@ -23,22 +57,29 @@ export function buildMap(projectRoot: string, config: Config): { content: string
     } catch {
       continue;
     }
-    const tokens = estimateTokens(content, rel);
-    const key = sectionFor(rel);
-    if (!sections.has(key)) sections.set(key, []);
-    sections.get(key)!.push({
-      file: path.posix.basename(rel),
-      description: describeFile(rel, content),
-      tokens,
-      cost: inputCost(config.model, tokens),
-    });
+    pushEntry(sections, rel, content, estimateTokens(content, rel), config.model);
   }
-  let fileCount = 0;
-  for (const [, list] of sections) fileCount += list.length;
-  return {
-    content: serializeMap(sections, { fileCount, updated: new Date().toISOString() }),
-    fileCount,
-  };
+  return finalize(sections);
+}
+
+/** Build the map reconciling token counts through `counter` (e.g. exact counts).
+ * Falls back per file to the estimate inside the counter on any failure. */
+export async function buildMapWith(
+  projectRoot: string,
+  config: Config,
+  counter: TokenCounter = estimateCounter,
+): Promise<{ content: string; fileCount: number }> {
+  const sections = new Map<string, MapEntry[]>();
+  for (const { abs, rel } of walkProject(projectRoot, config)) {
+    let content: string;
+    try {
+      content = fs.readFileSync(abs, "utf8");
+    } catch {
+      continue;
+    }
+    pushEntry(sections, rel, content, await counter(content, rel), config.model);
+  }
+  return finalize(sections);
 }
 
 export function scanProject(projectRoot: string, config: Config): number {
@@ -47,12 +88,36 @@ export function scanProject(projectRoot: string, config: Config): number {
   return fileCount;
 }
 
+export async function scanProjectWith(
+  projectRoot: string,
+  config: Config,
+  counter: TokenCounter,
+): Promise<number> {
+  const { content, fileCount } = await buildMapWith(projectRoot, config, counter);
+  writeText(brain(projectRoot).map, content);
+  return fileCount;
+}
+
+/** Drop the auto-generated "_Maintained by … updated <ts>_" line so two builds
+ * of unchanged sources compare equal. */
+function normalizeMap(content: string): string {
+  return content
+    .split(/\r?\n/)
+    .filter((l) => !/^_Maintained by PackMind/.test(l))
+    .join("\n")
+    .trim();
+}
+
 export function countMapEntries(content: string): number {
   let n = 0;
   for (const [, list] of parseMap(content)) n += list.length;
   return n;
 }
 
-export function currentMapEntries(projectRoot: string): number {
-  return countMapEntries(readTextOr(brain(projectRoot).map));
+/** True when map.md no longer reflects the project — compares full content
+ * (descriptions, tokens, cost, file set), not just the file count. */
+export function mapIsStale(projectRoot: string, config: Config): boolean {
+  const fresh = normalizeMap(buildMap(projectRoot, config).content);
+  const current = normalizeMap(readTextOr(brain(projectRoot).map));
+  return fresh !== current;
 }

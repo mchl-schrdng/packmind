@@ -2,6 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { findRoot } from "../state/project.js";
+import { pkgVersion } from "../cli/locate.js";
 import {
   makeContext,
   isInitialized,
@@ -87,7 +88,7 @@ function text(s: string) {
 async function main(): Promise<void> {
   const projectRoot = findRoot();
   const server = new Server(
-    { name: "packmind", version: "0.1.0" },
+    { name: "packmind", version: pkgVersion() },
     { capabilities: { tools: {} } },
   );
 
