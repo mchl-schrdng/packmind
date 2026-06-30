@@ -20,6 +20,12 @@
 
 ---
 
+<p align="center">
+  <img src="assets/dashboard.gif" alt="PackMind dashboard — Overview, Insights, Project Map, Journal, and Recall" width="800" />
+</p>
+
+---
+
 ## What PackMind does
 
 Claude Code works without persistent project context: it can't tell a 50-token
