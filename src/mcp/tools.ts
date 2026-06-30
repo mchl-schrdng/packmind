@@ -4,7 +4,7 @@ import { loadConfig, type Config } from "../state/schema.js";
 import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
-import { recall as recallSearch } from "../recall/indexer.js";
+import { recall as recallSearch, indexSize } from "../recall/indexer.js";
 import { computeInsights } from "../cost/insights.js";
 import { LocalEmbedder, type Embedder } from "../recall/embedder.js";
 import { enqueue } from "../recall/queue.js";
@@ -23,7 +23,10 @@ export function makeContext(projectRoot: string): ToolContext {
 export async function toolRecall(ctx: ToolContext, query: string): Promise<string> {
   if (!ctx.config.recall.enabled) return "Recall is disabled in config.";
   const hits = await recallSearch(ctx.projectRoot, ctx.config, ctx.embedder, query);
-  if (hits.length === 0) return "No relevant memory found. Index may be empty — run `packmind index`.";
+  if (hits.length === 0)
+    return indexSize(ctx.projectRoot, ctx.config) === 0
+      ? "Recall index isn't built yet — run `packmind index` to enable semantic search."
+      : "No relevant memory found for that query.";
   return hits
     .map((h, i) => `${i + 1}. [${h.kind} · ${h.source} · score ${h.score.toFixed(2)}]\n${h.text.slice(0, 600)}`)
     .join("\n\n");

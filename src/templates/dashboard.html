@@ -555,10 +555,12 @@ async function renderRecall() {
     const q = $("rq").value.trim();
     if (!q) return;
     $("rhits").innerHTML = '<div class="empty">Searching…</div>';
-    const { hits } = await api("/api/recall?q=" + encodeURIComponent(q));
+    const { hits, indexed } = await api("/api/recall?q=" + encodeURIComponent(q));
     $("rhits").innerHTML = (hits && hits.length)
       ? hits.map(h => `<div class="hit"><div class="h"><span class="kind">${esc(h.kind)}</span><span class="src">${esc(h.source)}</span><span class="score">${(h.score||0).toFixed(2)}</span></div><pre>${esc((h.text||"").slice(0, 600))}</pre></div>`).join("")
-      : '<div class="empty">No matches. Run <code>packmind index</code> if you haven\'t yet.</div>';
+      : (indexed
+          ? '<div class="empty">No matches for that query.</div>'
+          : '<div class="empty">Recall index isn\'t built yet — run <code>packmind index</code> to enable semantic search.</div>');
   };
   $("rgo").onclick = run;
   $("rq").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
