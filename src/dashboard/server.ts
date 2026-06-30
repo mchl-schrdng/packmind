@@ -23,6 +23,20 @@ export interface DashboardHandle {
   close: () => void;
 }
 
+/**
+ * Tail of the journal for the dashboard, never cutting a session header off.
+ * The client parser keys sessions on `## ` headers, so a naive last-N-lines
+ * slice can orphan an active session's rows (header scrolled past the window)
+ * and render the tab as empty. Back the start up to the most recent `## `
+ * boundary so the parser always sees complete leading sessions.
+ */
+export function journalTail(text: string, maxLines = 200): string {
+  const lines = text.split(/\r?\n/);
+  let start = Math.max(0, lines.length - maxLines);
+  while (start > 0 && !lines[start].startsWith("## ")) start--;
+  return lines.slice(start).join("\n");
+}
+
 interface Ctx {
   projectRoot: string;
   config: Config;
@@ -88,7 +102,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
       if (url.pathname === "/api/solutions")
         return json(res, 200, readJsonOr(brain(ctx.projectRoot).solutions, []));
       if (url.pathname === "/api/journal")
-        return json(res, 200, { text: readTextOr(brain(ctx.projectRoot).journal).split(/\r?\n/).slice(-200).join("\n") });
+        return json(res, 200, { text: journalTail(readTextOr(brain(ctx.projectRoot).journal)) });
       if (url.pathname === "/api/knowledge")
         return json(res, 200, { text: readTextOr(brain(ctx.projectRoot).knowledge) });
       if (url.pathname === "/api/recall") {
