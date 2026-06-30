@@ -14,6 +14,7 @@ import {
   toolInsights,
   toolHandoff,
   toolDebt,
+  toolReview,
 } from "./tools.js";
 
 const TOOLS = [
@@ -85,6 +86,14 @@ const TOOLS = [
     description: "List `packmind:` deferred-shortcut markers left in the code (the lean-mode debt ledger) so 'later' doesn't become 'never'.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "review",
+    description: "Package the current diff (working tree vs HEAD, or vs a base ref) with the lean decision ladder so you can review it for over-engineering and produce a delete-list.",
+    inputSchema: {
+      type: "object",
+      properties: { base: { type: "string", description: "Optional base ref to diff against instead of HEAD" } },
+    },
+  },
 ];
 
 function text(s: string) {
@@ -124,6 +133,8 @@ async function main(): Promise<void> {
           return text(toolHandoff(ctx, a.action === "set" ? "set" : "get", a.content));
         case "debt":
           return text(toolDebt(ctx));
+        case "review":
+          return text(toolReview(ctx, a.base));
         default:
           return text(`Unknown tool: ${req.params.name}`);
       }

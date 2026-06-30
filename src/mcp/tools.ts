@@ -4,6 +4,7 @@ import { loadConfig, type Config } from "../state/schema.js";
 import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
+import { gitDiff, reviewPayload } from "../state/review.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { recall as recallSearch, indexSize } from "../recall/indexer.js";
 import { computeInsights } from "../cost/insights.js";
@@ -156,6 +157,10 @@ export function toolDebt(ctx: ToolContext): string {
     `${items.length} deferred shortcut${items.length === 1 ? "" : "s"}:`,
     ...items.map((i) => `  ${i.file}:${i.line}  ${i.note}`),
   ].join("\n");
+}
+
+export function toolReview(ctx: ToolContext, base?: string): string {
+  return reviewPayload(gitDiff(ctx.projectRoot, base));
 }
 
 /** True if the project has been initialized. */
