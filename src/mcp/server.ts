@@ -13,6 +13,7 @@ import {
   toolUsageReport,
   toolInsights,
   toolHandoff,
+  toolDebt,
 } from "./tools.js";
 
 const TOOLS = [
@@ -32,7 +33,7 @@ const TOOLS = [
       type: "object",
       properties: {
         note: { type: "string" },
-        kind: { type: "string", enum: ["Preferences", "Decisions", "Never Do", "Notes"] },
+        kind: { type: "string", enum: ["Preferences", "Decisions", "Never Do", "Notes", "Debt"] },
       },
       required: ["note"],
     },
@@ -79,6 +80,11 @@ const TOOLS = [
       required: ["action"],
     },
   },
+  {
+    name: "debt",
+    description: "List `packmind:` deferred-shortcut markers left in the code (the lean-mode debt ledger) so 'later' doesn't become 'never'.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 function text(s: string) {
@@ -116,6 +122,8 @@ async function main(): Promise<void> {
           return text(toolInsights(ctx));
         case "handoff":
           return text(toolHandoff(ctx, a.action === "set" ? "set" : "get", a.content));
+        case "debt":
+          return text(toolDebt(ctx));
         default:
           return text(`Unknown tool: ${req.params.name}`);
       }
