@@ -6,6 +6,8 @@ import {
   writeText,
   appendLine,
   readSession,
+  writeSession,
+  computeStopReminders,
   hookConfig,
   emitContext,
 } from "./runtime.js";
@@ -77,14 +79,11 @@ async function main(): Promise<void> {
     );
   }
 
-  const reminders: string[] = [];
-  if (session.writes.length >= 3) {
-    reminders.push("Several files changed — record durable lessons/decisions with the `remember` tool and any fixes with `record_solution`.");
-  }
-  const heavy = Object.entries(session.editCounts).filter(([, n]) => n >= 4);
-  if (heavy.length) {
-    reminders.push(`Repeatedly edited ${heavy.map(([f]) => `\`${f}\``).join(", ")} — capture the root cause so it isn't rediscovered.`);
-  }
+  // Latch reminders so each fires at most once per session — otherwise the
+  // still-true condition re-emits every turn and the Stop emission re-invokes
+  // the agent in an infinite loop.
+  const reminders = computeStopReminders(session);
+  if (reminders.length) writeSession(session);
   emitContext("Stop", reminders.join(" "));
 }
 

@@ -435,6 +435,9 @@ export interface Session {
   mapHits: number;
   mapMisses: number;
   dedupedReads: number;
+  /** Stop-hook reminder latches so each nudge fires at most once per session. */
+  notifiedWrites?: boolean;
+  notifiedEdits?: string[];
 }
 export function newSession(id: string): Session {
   return {
@@ -457,6 +460,29 @@ export function readSession(): Session | null {
 }
 export function writeSession(s: Session): void {
   writeJson(brainPath("state", "session.json"), s);
+}
+
+/**
+ * Build the Stop-hook reminders, latching each on the session so a given nudge
+ * fires at most once per session. Without these latches the Stop hook re-emits
+ * the same reminder on every turn (the conditions stay true for the rest of the
+ * session), and because emitting context from Stop re-invokes the agent, that
+ * loops indefinitely. Mutates `session.notified*`; caller persists the session
+ * when the returned array is non-empty.
+ */
+export function computeStopReminders(session: Session): string[] {
+  const reminders: string[] = [];
+  if (session.writes.length >= 3 && !session.notifiedWrites) {
+    reminders.push("Several files changed — record durable lessons/decisions with the `remember` tool and any fixes with `record_solution`.");
+    session.notifiedWrites = true;
+  }
+  const already = session.notifiedEdits ?? [];
+  const heavy = Object.entries(session.editCounts).filter(([f, n]) => n >= 4 && !already.includes(f));
+  if (heavy.length) {
+    reminders.push(`Repeatedly edited ${heavy.map(([f]) => `\`${f}\``).join(", ")} — capture the root cause so it isn't rediscovered.`);
+    session.notifiedEdits = [...already, ...heavy.map(([f]) => f)];
+  }
+  return reminders;
 }
 
 // --- recall queue (zero-dep enqueue) ----------------------------------------
