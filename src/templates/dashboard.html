@@ -220,7 +220,7 @@ function areaChart(values, opts) {
   const grid = [0, 0.5, 1].map(f => {
     const yy = (h - pad - f * (h - 2 * pad)).toFixed(1);
     return `<line x1="${pad}" y1="${yy}" x2="${w - pad}" y2="${yy}" stroke="var(--border2)" stroke-dasharray="3 4"/>` +
-      `<text x="${pad - 6}" y="${(+yy + 4)}" text-anchor="end" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
+      `<text x="${pad + 2}" y="${(+yy - 5)}" text-anchor="start" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
   }).join("");
   const dots = values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${o.color}"><title>${esc(o.fmt(v))}</title></circle>`).join("");
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">
@@ -245,7 +245,7 @@ function barsV(rows, opts) {
   const grid = [0, 0.5, 1].map(f => {
     const yy = (h - pad - f * (h - 2 * pad)).toFixed(1);
     return `<line x1="${pad}" y1="${yy}" x2="${w - pad}" y2="${yy}" stroke="var(--border2)" stroke-dasharray="3 4"/>` +
-      `<text x="${pad - 6}" y="${(+yy + 4)}" text-anchor="end" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
+      `<text x="${pad + 2}" y="${(+yy - 5)}" text-anchor="start" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
   }).join("");
   const labelEvery = Math.ceil(n / 8);
   const bars = rows.map((r, i) => {
