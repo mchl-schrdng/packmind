@@ -5,7 +5,7 @@ import { deepMerge, type Config } from "../state/schema.js";
  * path with its expected JS type. Anything not listed here is rejected — the UI
  * never touches `cost.prices`, `claude.*`, `version`, or `map.excludeDirs`.
  */
-export type FieldType = "string" | "boolean" | "number" | "exact" | "stringArray";
+export type FieldType = "string" | "boolean" | "number" | "exact" | "stringArray" | "leanMode";
 
 export const ALLOWED_CONFIG_KEYS: Record<string, FieldType> = {
   model: "string",
@@ -14,6 +14,7 @@ export const ALLOWED_CONFIG_KEYS: Record<string, FieldType> = {
   "recall.chunkChars": "number",
   "recall.topK": "number",
   "guard.blockSecrets": "boolean",
+  "guard.lean.mode": "leanMode",
   "map.maxFiles": "number",
   "map.autoScanOnInit": "boolean",
   "map.respectGitignore": "boolean",
@@ -31,6 +32,8 @@ function typeOk(type: FieldType, value: unknown): boolean {
       return typeof value === "number" && Number.isFinite(value);
     case "exact":
       return value === "auto" || value === "never" || value === "always";
+    case "leanMode":
+      return value === "off" || value === "lite" || value === "full";
     case "stringArray":
       return Array.isArray(value) && value.every((v) => typeof v === "string");
   }

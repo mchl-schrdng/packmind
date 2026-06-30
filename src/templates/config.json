@@ -40,7 +40,8 @@
     "topK": 6
   },
   "guard": {
-    "blockSecrets": false
+    "blockSecrets": false,
+    "lean": { "mode": "lite" }
   },
   "claude": {
     "settingsPath": ".claude/settings.json",

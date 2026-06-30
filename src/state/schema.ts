@@ -33,6 +33,8 @@ export interface Config {
   guard: {
     /** Hard-block writes that target a secret file (opt-in). */
     blockSecrets: boolean;
+    /** Lean mode: nudge toward reuse-first, minimal solutions before writing. */
+    lean: { mode: "off" | "lite" | "full" };
   };
   claude: {
     settingsPath: string;
@@ -61,7 +63,7 @@ export const DEFAULT_CONFIG: Config = {
     chunkChars: 1200,
     topK: 6,
   },
-  guard: { blockSecrets: false },
+  guard: { blockSecrets: false, lean: { mode: "lite" } },
   claude: {
     settingsPath: ".claude/settings.json",
     claudeMdPath: "CLAUDE.md",
