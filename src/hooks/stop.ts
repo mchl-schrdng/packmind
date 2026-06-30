@@ -35,6 +35,8 @@ async function main(): Promise<void> {
       outputCost: session.outputCost,
       reads,
       writes: session.writes.length,
+      dedupedReads: session.dedupedReads,
+      mapHits: session.mapHits,
     });
     const t = ledger.totals;
     t.inputTokens += session.inputTokens;

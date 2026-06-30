@@ -5,8 +5,9 @@ import * as path from "node:path";
 import { createSnapshot, listSnapshots, restoreSnapshot, pruneSnapshots } from "../src/state/snapshot.js";
 import { consolidateJournal } from "../src/state/maintain.js";
 import { computeInsights } from "../src/cost/insights.js";
+import { commitSession, emptyLedger, readLedger } from "../src/cost/ledger.js";
 import { DEFAULT_CONFIG } from "../src/state/schema.js";
-import { brain } from "../src/state/files.js";
+import { brain, emptySession } from "../src/state/files.js";
 
 function makeProject(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-feat-"));
@@ -88,5 +89,30 @@ describe("insights", () => {
     expect(r.estTokensSaved).toBeGreaterThan(0);
     // coverage 30% < 60% with 20 reads → a low-coverage warning
     expect(r.flags.some((f) => f.title === "Low map coverage")).toBe(true);
+  });
+});
+
+describe("usage ledger", () => {
+  it("records dedupedReads and mapHits on each committed session", () => {
+    const dir = makeProject();
+    const b = brain(dir);
+    fs.writeFileSync(b.usage, JSON.stringify(emptyLedger("claude-opus-4-8")));
+
+    const s = emptySession("s-test");
+    s.inputTokens = 1200;
+    s.outputTokens = 300;
+    s.dedupedReads = 5;
+    s.mapHits = 8;
+    s.writes.push({ file: "a.ts", action: "edit", tokens: 50, at: "x" });
+    commitSession(dir, "claude-opus-4-8", s);
+
+    const ledger = readLedger(dir, "claude-opus-4-8");
+    expect(ledger.sessions).toHaveLength(1);
+    // Per-session savings counters surface to the dashboard's savings chart.
+    expect(ledger.sessions[0].dedupedReads).toBe(5);
+    expect(ledger.sessions[0].mapHits).toBe(8);
+    // And they still aggregate into lifetime totals.
+    expect(ledger.totals.dedupedReads).toBe(5);
+    expect(ledger.totals.mapHits).toBe(8);
   });
 });

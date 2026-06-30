@@ -11,6 +11,7 @@
     --border: #20262f; --border2: #2a323d;
     --text: #e6edf3; --muted: #8b95a5; --faint: #5b6675;
     --accent: #00e5ff; --accent2: #4dabf5; --good: #3fb950; --warn: #d29922;
+    --shadow: 0 1px 2px rgba(0,0,0,.25), 0 6px 18px rgba(0,0,0,.16);
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
@@ -29,10 +30,15 @@
   .brand .name { font-size: 16px; font-weight: 650; letter-spacing: .2px; }
   .proj { padding: 0 6px; }
   .proj .pname { color: var(--muted); font-size: 12px; }
-  .pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  /* Status zone: Healthy + Live share one consistent badge style. */
+  .status-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px;
     font-size: 12px; color: var(--good); background: rgba(63,185,80,.12);
     border: 1px solid rgba(63,185,80,.25); padding: 3px 10px; border-radius: 999px; }
   .pill .d { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
+  .pill.live { color: var(--accent); background: rgba(0,229,255,.10); border-color: rgba(0,229,255,.28); }
+  .pill.live .d { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
   nav { display: flex; flex-direction: column; gap: 2px; }
   .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 11px;
     border-radius: 9px; color: var(--muted); cursor: pointer; user-select: none;
@@ -41,33 +47,34 @@
   .nav-item:hover { color: var(--text); background: var(--surface); }
   .nav-item.active { color: var(--text); background: var(--surface);
     border-color: var(--border2); box-shadow: inset 2px 0 0 var(--accent); }
-  .side .foot { margin-top: auto; color: var(--faint); font-size: 11px; padding: 0 6px; }
 
   /* Main */
   main { min-width: 0; }
-  .topbar { display: flex; align-items: center; gap: 12px; padding: 22px 30px 6px; }
+  .topbar { display: flex; align-items: center; gap: 12px; padding: 22px 30px 2px; }
   .topbar h1 { font-size: 22px; font-weight: 650; margin: 0; letter-spacing: .2px; }
-  .topbar .spacer { flex: 1; }
-  .live { display: inline-flex; align-items: center; gap: 7px; color: var(--good); font-size: 12px; }
-  .live .d { width: 7px; height: 7px; border-radius: 50%; background: var(--good); box-shadow: 0 0 8px var(--good); }
+  .section-desc { color: var(--muted); font-size: 13px; margin: 0; padding: 0 30px 2px; max-width: 1180px; }
   .content { padding: 16px 30px 40px; max-width: 1180px; }
 
-  .hero { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px 28px; margin-bottom: 18px; }
+  .hero { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 26px 28px; margin-bottom: 18px; box-shadow: var(--shadow); }
   .hero h2 { margin: 0 0 8px; font-size: 30px; font-weight: 700; }
-  .hero p { margin: 0 0 14px; color: var(--muted); max-width: 760px; }
+  .hero p { margin: 0; color: var(--muted); max-width: 760px; }
 
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); }
   .card .label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .7px; }
   .card .value { font-size: 30px; font-weight: 700; margin-top: 8px; line-height: 1.1; }
   .card .value.accent { color: var(--accent); }
+  .card .value.good { color: var(--good); }
   .card .sub { color: var(--faint); font-size: 12px; margin-top: 4px; }
 
-  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .panel + .panel, .cards + .panel, .panel + .cards, .section + .section { margin-top: 18px; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .panel + .panel, .cards + .panel, .panel + .cards, .section + .section,
+  .cards + .grid2, .grid2 + .panel, .panel + .grid2, .grid2 + .cards, .grid2 + .grid2 { margin-top: 18px; }
   .panel .head { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 13px;
     text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
   .panel .body { padding: 18px 20px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .grid2 .panel { margin-top: 0; }
 
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 11px 20px; border-bottom: 1px solid var(--border); }
@@ -85,6 +92,30 @@
   .search input:focus { border-color: var(--accent); }
   .search button { background: var(--accent); color: #00252b; border: none; padding: 0 20px;
     border-radius: 10px; font-weight: 650; cursor: pointer; }
+
+  /* Map toolbar: filter + Tree/Table toggle */
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+  .filter { flex: 1; background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    padding: 11px 16px; border-radius: 10px; font-size: 14px; outline: none; }
+  .filter::placeholder { color: var(--faint); }
+  .filter:focus { border-color: var(--accent); }
+  .seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button { background: none; border: none; color: var(--muted); padding: 9px 16px; cursor: pointer; font-size: 13px; }
+  .seg button.active { background: var(--surface2); color: var(--text); }
+
+  /* Project Map tree */
+  .tree { padding: 6px 6px 10px; }
+  .trow { display: flex; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 7px; font-size: 13px; }
+  .trow:hover { background: var(--surface2); }
+  .trow.dir { cursor: pointer; user-select: none; }
+  .trow .tw { width: 14px; flex: none; text-align: center; color: var(--faint); }
+  .trow .nm { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+  .trow.dir .nm { font-weight: 600; color: var(--text); }
+  .trow .cnt { color: var(--faint); font-size: 11px; flex: none; }
+  .trow .desc { color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .trow .bar { width: 64px; height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; flex: none; }
+  .trow .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); }
+  .trow .tok { width: 70px; text-align: right; color: var(--accent2); font-variant-numeric: tabular-nums; font-size: 12px; flex: none; }
 
   .hit { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; }
   .hit .h { display: flex; gap: 10px; align-items: center; font-size: 12px; margin-bottom: 8px; }
@@ -109,6 +140,9 @@
   .actrow .a { color: var(--accent2); width: 90px; flex: none; }
   .actrow .f { color: var(--text); }
   .chartbox { padding: 10px 14px 6px; }
+  .legend { display: flex; gap: 16px; padding: 0 6px 12px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+  .gaugewrap { display: flex; align-items: center; justify-content: center; padding: 8px; }
   .barsh { display: flex; flex-direction: column; gap: 10px; }
   .barh { display: grid; grid-template-columns: 130px 1fr 90px; align-items: center; gap: 12px; }
   .barh-label { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -119,6 +153,14 @@
   .empty { color: var(--faint); padding: 22px; text-align: center; }
   .muted { color: var(--muted); }
   h3.sub { font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 12px; }
+
+  @media (max-width: 760px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; }
+    nav { flex-direction: row; flex-wrap: wrap; }
+    .nav-item { flex: 1 1 auto; justify-content: center; }
+    .topbar, .section-desc, .content { padding-left: 18px; padding-right: 18px; }
+  }
 </style>
 </head>
 <body>
@@ -127,17 +169,18 @@
     <div class="brand"><span class="logo"><img src="/logo-dark.svg" alt="" /></span><span class="name">PackMind</span></div>
     <div class="proj">
       <div class="pname" id="pname">—</div>
-      <span class="pill"><span class="d"></span> Healthy</span>
+      <div class="status-group">
+        <span class="pill"><span class="d"></span> Healthy</span>
+        <span class="pill live"><span class="d"></span> Live</span>
+      </div>
     </div>
     <nav id="nav"></nav>
-    <div class="foot">Loopback · token-protected</div>
   </aside>
   <main>
     <div class="topbar">
       <h1 id="title">Overview</h1>
-      <span class="spacer"></span>
-      <span class="live"><span class="d"></span> Live</span>
     </div>
+    <p class="section-desc" id="desc"></p>
     <div class="content" id="view"><div class="empty">Loading…</div></div>
   </main>
 </div>
@@ -149,6 +192,7 @@ const $ = (id) => document.getElementById(id);
 // name containing " or ' can't break out of a title="..." attribute.
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const money = (n) => "$" + (Number(n) || 0).toFixed(4);
+const fmtTok = (v) => v >= 1000 ? (v / 1000).toFixed(1) + "k" : String(Math.round(v));
 
 const ICON = {
   overview: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
@@ -161,12 +205,14 @@ const ICON = {
 };
 
 // ---- inline-SVG charts (zero dependency) --------------------------------
+let _gid = 0;
 function areaChart(values, opts) {
-  const o = Object.assign({ w: 760, h: 180, pad: 28, fmt: (v) => v }, opts || {});
+  const o = Object.assign({ w: 760, h: 180, pad: 28, fmt: (v) => v, color: "var(--accent)" }, opts || {});
   if (!values.length) return '<div class="empty">No session data yet.</div>';
   const { w, h, pad } = o;
   const max = Math.max(...values, 1e-9);
   const n = values.length;
+  const gid = "ag" + (++_gid);
   const x = (i) => pad + (n === 1 ? (w - 2 * pad) / 2 : (i * (w - 2 * pad)) / (n - 1));
   const y = (v) => h - pad - (v / max) * (h - 2 * pad);
   const pts = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`);
@@ -175,15 +221,51 @@ function areaChart(values, opts) {
   const grid = [0, 0.5, 1].map(f => {
     const yy = (h - pad - f * (h - 2 * pad)).toFixed(1);
     return `<line x1="${pad}" y1="${yy}" x2="${w - pad}" y2="${yy}" stroke="var(--border2)" stroke-dasharray="3 4"/>` +
-      `<text x="${pad - 6}" y="${(+yy + 4)}" text-anchor="end" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
+      `<text x="${pad + 2}" y="${(+yy - 5)}" text-anchor="start" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
   }).join("");
-  const dots = values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="var(--accent)"><title>${esc(o.fmt(v))}</title></circle>`).join("");
+  const dots = values.map((v, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${o.color}"><title>${esc(o.fmt(v))}</title></circle>`).join("");
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">
-    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="var(--accent)" stop-opacity="0.30"/>
-      <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
-    ${grid}<path d="${area}" fill="url(#ag)"/><path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>${dots}
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${o.color}" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="${o.color}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#${gid})"/><path d="${line}" fill="none" stroke="${o.color}" stroke-width="2" stroke-linejoin="round"/>${dots}
   </svg>`;
+}
+
+// Vertical stacked bars — rows: [{ label, values: [s0, s1, ...] }] stacked in series order.
+function barsV(rows, opts) {
+  const o = Object.assign({ w: 760, h: 200, pad: 30, fmt: (v) => v, series: [] }, opts || {});
+  if (!rows.length) return '<div class="empty">No session data yet.</div>';
+  const { w, h, pad } = o;
+  const totals = rows.map(r => r.values.reduce((a, b) => a + b, 0));
+  const max = Math.max(...totals, 1e-9);
+  const n = rows.length;
+  const slot = (w - 2 * pad) / n;
+  const bw = Math.min(36, slot * 0.6);
+  const yOf = (v) => (v / max) * (h - 2 * pad);
+  const grid = [0, 0.5, 1].map(f => {
+    const yy = (h - pad - f * (h - 2 * pad)).toFixed(1);
+    return `<line x1="${pad}" y1="${yy}" x2="${w - pad}" y2="${yy}" stroke="var(--border2)" stroke-dasharray="3 4"/>` +
+      `<text x="${pad + 2}" y="${(+yy - 5)}" text-anchor="start" fill="var(--faint)" font-size="10">${esc(o.fmt(max * f))}</text>`;
+  }).join("");
+  const labelEvery = Math.ceil(n / 8);
+  const bars = rows.map((r, i) => {
+    const cx = pad + slot * (i + 0.5);
+    let y0 = h - pad;
+    let seg = "";
+    r.values.forEach((v, k) => {
+      const sh = yOf(v);
+      if (sh > 0) {
+        const col = (o.series[k] && o.series[k].color) || "var(--accent)";
+        const nm = (o.series[k] && o.series[k].name) || "";
+        seg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${(y0 - sh).toFixed(1)}" width="${bw.toFixed(1)}" height="${sh.toFixed(1)}" fill="${col}"><title>${esc(nm)}: ${esc(o.fmt(v))}</title></rect>`;
+        y0 -= sh;
+      }
+    });
+    const lbl = i % labelEvery === 0 ? `<text x="${cx.toFixed(1)}" y="${h - pad + 14}" text-anchor="middle" fill="var(--faint)" font-size="10">${esc(r.label)}</text>` : "";
+    return seg + lbl;
+  }).join("");
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block">${grid}${bars}</svg>`;
 }
 
 function barsH(rows, opts) {
@@ -193,19 +275,39 @@ function barsH(rows, opts) {
   return `<div class="barsh">` + rows.map(r => `
     <div class="barh">
       <div class="barh-label" title="${esc(r.label)}">${esc(r.label)}</div>
-      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%"></div></div>
+      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%${r.color ? ";background:" + r.color : ""}"></div></div>
       <div class="barh-val">${esc(o.fmt(r.value))}</div>
     </div>`).join("") + `</div>`;
 }
 
+// Radial gauge for a 0..1 fraction; null renders an em dash.
+function gauge(frac, label) {
+  const s = 168, cxy = s / 2, r = s / 2 - 16, c = 2 * Math.PI * r;
+  if (frac === null || frac === undefined) {
+    return `<svg viewBox="0 0 ${s} ${s}" width="${s}" height="${s}">
+      <circle cx="${cxy}" cy="${cxy}" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="12"/>
+      <text x="${cxy}" y="${cxy + 2}" text-anchor="middle" fill="var(--faint)" font-size="30" font-weight="700">—</text>
+      <text x="${cxy}" y="${cxy + 22}" text-anchor="middle" fill="var(--faint)" font-size="11">${esc(label || "")}</text></svg>`;
+  }
+  frac = Math.max(0, Math.min(1, frac));
+  const col = frac >= 0.6 ? "var(--good)" : frac >= 0.3 ? "var(--warn)" : "var(--accent2)";
+  const off = c * (1 - frac);
+  return `<svg viewBox="0 0 ${s} ${s}" width="${s}" height="${s}">
+    <circle cx="${cxy}" cy="${cxy}" r="${r}" fill="none" stroke="var(--surface2)" stroke-width="12"/>
+    <circle cx="${cxy}" cy="${cxy}" r="${r}" fill="none" stroke="${col}" stroke-width="12" stroke-linecap="round"
+      stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 ${cxy} ${cxy})"/>
+    <text x="${cxy}" y="${cxy + 2}" text-anchor="middle" fill="var(--text)" font-size="30" font-weight="700">${Math.round(frac * 100)}%</text>
+    <text x="${cxy}" y="${cxy + 22}" text-anchor="middle" fill="var(--faint)" font-size="11">${esc(label || "")}</text></svg>`;
+}
+
 const SECTIONS = [
-  { id: "overview", title: "Overview", render: renderOverview },
-  { id: "insights", title: "Insights", render: renderInsights },
-  { id: "map", title: "Project Map", render: renderMap },
-  { id: "recall", title: "Recall", render: renderRecall },
-  { id: "solutions", title: "Solutions", render: renderSolutions },
-  { id: "knowledge", title: "Knowledge", render: renderKnowledge },
-  { id: "journal", title: "Journal", render: renderJournal },
+  { id: "overview", title: "Overview", desc: "Quick summary of activity, cost, and project health.", render: renderOverview },
+  { id: "insights", title: "Insights", desc: "Where tokens go, what was saved, and the heaviest files.", render: renderInsights },
+  { id: "map", title: "Project Map", desc: "Tracked files with description, estimated size, and read cost.", render: renderMap },
+  { id: "recall", title: "Recall", desc: "Semantic search across the project's memory.", render: renderRecall },
+  { id: "solutions", title: "Solutions", desc: "History of fixed errors and their known fixes.", render: renderSolutions },
+  { id: "knowledge", title: "Knowledge", desc: "Durable preferences, decisions, and project rules.", render: renderKnowledge },
+  { id: "journal", title: "Journal", desc: "Recent activity and PackMind session traces.", render: renderJournal },
 ];
 
 let active = "overview";
@@ -213,7 +315,7 @@ let timer = null;
 
 function buildNav() {
   $("nav").innerHTML = SECTIONS.map(s =>
-    `<div class="nav-item" data-id="${s.id}">${ICON[s.id]}<span>${s.title}</span></div>`).join("");
+    `<div class="nav-item" data-id="${s.id}" title="${esc(s.desc)}">${ICON[s.id]}<span>${s.title}</span></div>`).join("");
   document.querySelectorAll(".nav-item").forEach(el => el.onclick = () => go(el.dataset.id));
 }
 
@@ -222,6 +324,7 @@ function go(id) {
   const sec = SECTIONS.find(s => s.id === id);
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.id === id));
   $("title").textContent = sec.title;
+  $("desc").textContent = sec.desc;
   $("view").innerHTML = '<div class="empty">Loading…</div>';
   sec.render();
   if (timer) clearInterval(timer);
@@ -230,26 +333,47 @@ function go(id) {
 }
 
 async function renderOverview() {
-  const [o, j, ins] = await Promise.all([api("/api/overview"), api("/api/journal"), api("/api/insights")]);
+  const [o, j, ins, map] = await Promise.all([api("/api/overview"), api("/api/journal"), api("/api/insights"), api("/api/map")]);
   $("pname").textContent = o.project || "—";
   const t = o.totals || {};
   const acts = (j.text || "").split(/\r?\n/)
     .map(l => l.match(/^\|\s*(\d{2}:\d{2})\s*\|\s*([^|]+?)\s*\|\s*`?([^|`]+?)`?\s*\|/))
     .filter(Boolean).slice(-12).reverse();
-  const costs = (o.sessions || []).map(s => (s.inputCost || 0) + (s.outputCost || 0));
+  const sessions = o.sessions || [];
+  // Average file size from the map drives the per-session savings estimate,
+  // mirroring the methodology in cost/insights.ts.
+  const totalMapTok = (map || []).reduce((a, e) => a + (e.tokens || 0), 0);
+  const avgFileTok = o.files > 0 ? totalMapTok / o.files : 0;
+  const costs = sessions.map(s => (s.inputCost || 0) + (s.outputCost || 0));
+  const tokRows = sessions.map((s, i) => ({ label: String(i + 1), values: [s.inputTokens || 0, s.outputTokens || 0] }));
+  const saved = sessions.map(s => Math.round(avgFileTok * ((s.dedupedReads || 0) + 0.5 * (s.mapHits || 0))));
+  const hasSaved = saved.some(v => v > 0);
   $("view").innerHTML = `
     <div class="hero">
       <h2>${esc(o.project || "PackMind")}</h2>
       <p>A second brain for Claude Code: project memory, real token &amp; cost accounting, semantic recall, and active guardrails.</p>
     </div>
     <div class="cards">
-      <div class="card"><div class="label">Tokens saved</div><div class="value accent">~${(ins.estTokensSaved||0).toLocaleString()}</div>
+      <div class="card"><div class="label">Tokens saved</div><div class="value good">~${(ins.estTokensSaved||0).toLocaleString()}</div>
         <div class="sub">≈ ${money(ins.estCostSaved)} · ${t.dedupedReads || 0} re-reads avoided</div></div>
       <div class="card"><div class="label">Total cost</div><div class="value">${money(o.cost)}</div>
         <div class="sub">${(t.inputTokens||0).toLocaleString()} in / ${(t.outputTokens||0).toLocaleString()} out</div></div>
       <div class="card"><div class="label">Files mapped</div><div class="value">${o.files}</div>
         <div class="sub">${o.vectors.toLocaleString()} vectors indexed</div></div>
       <div class="card"><div class="label">Sessions</div><div class="value">${t.sessions || 0}</div></div>
+    </div>
+    <div class="panel">
+      <div class="head">Tokens per session</div>
+      <div class="body chartbox">
+        <div class="legend"><span><i style="background:var(--accent2)"></i>Input</span><span><i style="background:var(--accent)"></i>Output</span></div>
+        ${barsV(tokRows, { series: [{ color: "var(--accent2)", name: "Input" }, { color: "var(--accent)", name: "Output" }], fmt: (v) => fmtTok(v) + " tok" })}
+      </div>
+    </div>
+    <div class="panel">
+      <div class="head">Tokens saved per session</div>
+      <div class="body chartbox">${hasSaved
+        ? areaChart(saved, { color: "var(--good)", fmt: (v) => "~" + fmtTok(v) + " tok" })
+        : '<div class="empty">Per-session savings appear once sessions run with dedup/map reuse.</div>'}</div>
     </div>
     <div class="panel">
       <div class="head">Cost per session</div>
@@ -275,18 +399,29 @@ async function renderInsights() {
   const dirRows = Object.entries(byDir)
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value).slice(0, 10);
+  const spent = (r.inputTokens || 0) + (r.outputTokens || 0);
+  const savedSpent = [
+    { label: "Saved (est)", value: r.estTokensSaved || 0, color: "var(--good)" },
+    { label: "Spent", value: spent },
+  ];
   $("view").innerHTML = `
     <div class="cards">
-      <div class="card"><div class="label">Estimated saved</div><div class="value accent">${money(r.estCostSaved)}</div>
+      <div class="card"><div class="label">Estimated saved</div><div class="value good">${money(r.estCostSaved)}</div>
         <div class="sub">~${(r.estTokensSaved||0).toLocaleString()} tokens · ${r.reReadsAvoided} re-reads avoided</div></div>
       <div class="card"><div class="label">Map coverage</div><div class="value">${cov}</div>
         <div class="sub">of reads hit a description</div></div>
       <div class="card"><div class="label">Total cost</div><div class="value">${money(r.totalCost)}</div>
         <div class="sub">${(r.inputTokens||0).toLocaleString()} in / ${(r.outputTokens||0).toLocaleString()} out</div></div>
     </div>
+    <div class="grid2">
+      <div class="panel"><div class="head">Map coverage</div>
+        <div class="body"><div class="gaugewrap">${gauge(r.mapCoverage, "of reads")}</div></div></div>
+      <div class="panel"><div class="head">Saved vs spent</div>
+        <div class="body">${barsH(savedSpent, { fmt: (v) => "~" + fmtTok(v) + " tok" })}</div></div>
+    </div>
     <div class="panel">
       <div class="head">Tokens by directory</div>
-      <div class="body">${barsH(dirRows, { fmt: (v) => "~" + (v >= 1000 ? (v / 1000).toFixed(1) + "k" : v) + " tok" })}</div>
+      <div class="body">${barsH(dirRows, { fmt: (v) => "~" + fmtTok(v) + " tok" })}</div>
     </div>
     ${(r.flags && r.flags.length) ? `<div class="panel"><div class="head">Notes</div><div class="body"><div class="flags">${
       r.flags.map(f => `<div class="flag ${f.level}"><b>${f.level === "good" ? "✓" : "!"} ${esc(f.title)}</b>${esc(f.detail)}</div>`).join("")
@@ -297,21 +432,115 @@ async function renderInsights() {
       }</tbody></table>` : '<div class="empty">No data yet.</div>'}</div>`;
 }
 
-let mapData = [];
+// ---- Project Map: tree + table -----------------------------------------
+function buildTree(items) {
+  const root = { name: "", path: "", dirs: new Map(), files: [], tokens: 0, cost: 0 };
+  for (const it of items) {
+    const sec = it.section === "./" || !it.section ? "" : it.section;
+    const full = sec + it.file;
+    const parts = full.split("/").filter(Boolean);
+    const fname = parts.pop() ?? it.file;
+    let node = root, acc = "";
+    for (const p of parts) {
+      acc += p + "/";
+      if (!node.dirs.has(p)) node.dirs.set(p, { name: p, path: acc, dirs: new Map(), files: [], tokens: 0, cost: 0 });
+      node = node.dirs.get(p);
+    }
+    node.files.push({ name: fname, path: full, tokens: it.tokens || 0, cost: it.cost || 0, description: it.description || "" });
+  }
+  (function sum(node) {
+    let tk = 0, c = 0;
+    for (const d of node.dirs.values()) { sum(d); tk += d.tokens; c += d.cost; }
+    for (const f of node.files) { tk += f.tokens; c += f.cost; }
+    node.tokens = tk; node.cost = c;
+  })(root);
+  return root;
+}
+function leafCount(node) {
+  let c = node.files.length;
+  for (const d of node.dirs.values()) c += leafCount(d);
+  return c;
+}
+function dirHasMatch(node, q) {
+  for (const f of node.files) if ((f.path + " " + f.description).toLowerCase().includes(q)) return true;
+  for (const d of node.dirs.values()) if (dirHasMatch(d, q)) return true;
+  return false;
+}
+
+let mapData = [], mapTree = null, mapView = "tree", expanded = new Set();
 async function renderMap() {
   mapData = await api("/api/map");
+  mapTree = buildTree(mapData);
+  // Start with top-level directories expanded.
+  expanded = new Set([...mapTree.dirs.values()].map(d => d.path));
   $("view").innerHTML = `
-    <div class="search"><input id="mq" placeholder="Filter files…" /></div>
+    <div class="toolbar">
+      <input id="mq" class="filter" placeholder="Filter files…" />
+      <div class="seg" id="mview">
+        <button data-v="tree" class="${mapView === "tree" ? "active" : ""}">Tree</button>
+        <button data-v="table" class="${mapView === "table" ? "active" : ""}">Table</button>
+      </div>
+    </div>
     <div class="panel" id="maptbl"></div>`;
+
+  const denom = Math.max(mapTree.tokens, 1);
+  const pct = (v) => Math.max(2, (v / denom) * 100).toFixed(1);
+
+  const rowsFor = (node, depth, q) => {
+    let out = "";
+    const pad = depth * 18 + 8;
+    const dirs = [...node.dirs.values()].sort((a, b) => b.tokens - a.tokens);
+    for (const d of dirs) {
+      if (q && !dirHasMatch(d, q)) continue;
+      const open = q ? true : expanded.has(d.path);
+      out += `<div class="trow dir" data-path="${esc(d.path)}" style="padding-left:${pad}px">
+        <span class="tw">${open ? "▾" : "▸"}</span>
+        <span class="nm">${esc(d.name)}/</span>
+        <span class="cnt">${leafCount(d)} files</span>
+        <span class="desc"></span>
+        <span class="bar"><i style="width:${pct(d.tokens)}%"></i></span>
+        <span class="tok">${fmtTok(d.tokens)}</span></div>`;
+      if (open) out += rowsFor(d, depth + 1, q);
+    }
+    let files = node.files.slice().sort((a, b) => b.tokens - a.tokens);
+    if (q) files = files.filter(f => (f.path + " " + f.description).toLowerCase().includes(q));
+    for (const f of files) {
+      out += `<div class="trow" style="padding-left:${pad}px">
+        <span class="tw"></span>
+        <span class="nm" title="${esc(f.path)}">${esc(f.name)}</span>
+        <span class="desc">${esc(f.description)}</span>
+        <span class="bar"><i style="width:${pct(f.tokens)}%"></i></span>
+        <span class="tok">${fmtTok(f.tokens)}</span></div>`;
+    }
+    return out;
+  };
+
   const draw = () => {
     const q = ($("mq").value || "").toLowerCase();
-    const rows = mapData.filter(r => !q || (r.section + r.file).toLowerCase().includes(q)).slice(0, 200);
-    $("maptbl").innerHTML = `<div class="head">${mapData.length} files tracked</div>` + (rows.length
-      ? `<table><thead><tr><th>File</th><th>Description</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${
-        rows.map(r => `<tr><td><code>${esc(r.section)}${esc(r.file)}</code></td><td class="muted">${esc(r.description)}</td><td class="num">${r.tokens}</td><td class="num">${money(r.cost)}</td></tr>`).join("")
-      }</tbody></table>` : '<div class="empty">No match.</div>');
+    if (mapView === "table") {
+      const rows = mapData.filter(r => !q || (r.section + r.file).toLowerCase().includes(q)).slice(0, 200);
+      $("maptbl").innerHTML = `<div class="head">${mapData.length} files tracked</div>` + (rows.length
+        ? `<table><thead><tr><th>File</th><th>Description</th><th class="num">Tokens</th><th class="num">Cost</th></tr></thead><tbody>${
+          rows.map(r => `<tr><td><code>${esc(r.section)}${esc(r.file)}</code></td><td class="muted">${esc(r.description)}</td><td class="num">${r.tokens}</td><td class="num">${money(r.cost)}</td></tr>`).join("")
+        }</tbody></table>` : '<div class="empty">No match.</div>');
+      return;
+    }
+    const body = rowsFor(mapTree, 0, q);
+    $("maptbl").innerHTML = `<div class="head">${mapData.length} files tracked</div><div class="tree">${body || '<div class="empty">No match.</div>'}</div>`;
+    // Folder rows toggle only when not filtering (filtering force-opens matches).
+    if (!q) document.querySelectorAll(".trow.dir").forEach(el => el.onclick = () => {
+      const p = el.dataset.path;
+      expanded.has(p) ? expanded.delete(p) : expanded.add(p);
+      draw();
+    });
   };
+
   $("mq").addEventListener("input", draw);
+  document.querySelectorAll("#mview button").forEach(b => b.onclick = () => {
+    mapView = b.dataset.v;
+    document.querySelectorAll("#mview button").forEach(x => x.classList.toggle("active", x === b));
+    draw();
+  });
   draw();
 }
 

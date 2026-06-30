@@ -29,6 +29,8 @@ export interface UsageLedger {
     outputCost: number;
     reads: number;
     writes: number;
+    dedupedReads?: number;
+    mapHits?: number;
   }>;
 }
 
@@ -67,6 +69,8 @@ export function commitSession(projectRoot: string, model: string, s: SessionStat
     outputCost: s.outputCost,
     reads,
     writes: s.writes.length,
+    dedupedReads: s.dedupedReads,
+    mapHits: s.mapHits,
   });
   const t = ledger.totals;
   t.inputTokens += s.inputTokens;
