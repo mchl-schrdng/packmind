@@ -48,15 +48,21 @@ export function withLock<T>(target: string, body: () => T): T {
     }
   }
 
+  // Never run the body unlocked: a concurrent writer still holds the lock, so
+  // proceeding here would risk a lost update to a shared file (usage.json,
+  // session state, the map, queues). Fail loudly instead — callers (fail-safe
+  // hooks, or the CLI/MCP) decide how to handle it.
+  if (!held) {
+    throw new Error(`packmind: could not acquire lock for ${target} (held by another writer)`);
+  }
+
   try {
     return body();
   } finally {
-    if (held) {
-      try {
-        fs.rmSync(lock, { recursive: true, force: true });
-      } catch {
-        /* best effort */
-      }
+    try {
+      fs.rmSync(lock, { recursive: true, force: true });
+    } catch {
+      /* best effort */
     }
   }
 }
