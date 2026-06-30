@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { cosine, VectorStore } from "../src/recall/store.js";
 import { chunkText } from "../src/recall/chunker.js";
-import { buildIndex, recall } from "../src/recall/indexer.js";
+import { buildIndex, recall, indexSize } from "../src/recall/indexer.js";
 import { DEFAULT_CONFIG } from "../src/state/schema.js";
 import type { Embedder } from "../src/recall/embedder.js";
 
@@ -61,5 +61,16 @@ describe("index + recall (stub embedder)", () => {
 
     const hits = await recall(dir, config, embedder, "auth token");
     expect(hits[0].source).toContain("auth.ts");
+  });
+
+  it("reports indexSize 0 before building and >0 after (drives the 'run index' hint)", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-recall-sz-"));
+    fs.mkdirSync(path.join(dir, ".packmind", "recall"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "auth.ts"), "handle auth token for user");
+
+    const config = { ...DEFAULT_CONFIG, map: { ...DEFAULT_CONFIG.map, respectGitignore: false } };
+    expect(indexSize(dir, config)).toBe(0); // not built → callers say "run packmind index"
+    await buildIndex(dir, config, new StubEmbedder());
+    expect(indexSize(dir, config)).toBeGreaterThan(0); // built → callers say "no matches"
   });
 });

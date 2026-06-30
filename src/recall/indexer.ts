@@ -102,6 +102,11 @@ export interface RecallHit {
   score: number;
 }
 
+/** Records currently in the on-disk vector index (0 means it isn't built yet). */
+export function indexSize(projectRoot: string, config: Config): number {
+  return new VectorStore(brain(projectRoot).vectors, config.recall.embedModel).size();
+}
+
 export async function recall(
   projectRoot: string,
   config: Config,

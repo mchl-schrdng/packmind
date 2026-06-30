@@ -9,7 +9,7 @@ import { parseMap } from "../state/formats.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { computeInsights } from "../cost/insights.js";
 import { VectorStore } from "../recall/store.js";
-import { recall } from "../recall/indexer.js";
+import { recall, indexSize } from "../recall/indexer.js";
 import { LocalEmbedder } from "../recall/embedder.js";
 import { TEMPLATES_DIR } from "../cli/locate.js";
 
@@ -93,7 +93,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
         if (!q.trim()) return json(res, 200, { hits: [] });
         const embedder = new LocalEmbedder(ctx.config.recall.embedModel);
         const hits = await recall(ctx.projectRoot, ctx.config, embedder, q);
-        return json(res, 200, { hits });
+        return json(res, 200, { hits, indexed: indexSize(ctx.projectRoot, ctx.config) > 0 });
       }
     } catch (err) {
       return json(res, 500, { error: err instanceof Error ? err.message : String(err) });
