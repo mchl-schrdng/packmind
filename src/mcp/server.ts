@@ -15,6 +15,8 @@ import {
   toolHandoff,
   toolDebt,
   toolReview,
+  toolCompress,
+  toolRetrieve,
 } from "./tools.js";
 
 const TOOLS = [
@@ -94,6 +96,27 @@ const TOOLS = [
       properties: { base: { type: "string", description: "Optional base ref to diff against instead of HEAD" } },
     },
   },
+  {
+    name: "compress",
+    description: "Stash a large NON-source output (log, JSON, command or search dump) you don't need verbatim: stores the original locally and returns a compact, reversible preview plus a retrieval hash. Never use on source code you need exact.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "The large text to shelve" },
+        kind: { type: "string", description: "Optional label, e.g. log / json / search" },
+      },
+      required: ["content"],
+    },
+  },
+  {
+    name: "retrieve",
+    description: "Return the full original text previously stored by compress, given its hash.",
+    inputSchema: {
+      type: "object",
+      properties: { hash: { type: "string" } },
+      required: ["hash"],
+    },
+  },
 ];
 
 function text(s: string) {
@@ -135,6 +158,10 @@ async function main(): Promise<void> {
           return text(toolDebt(ctx));
         case "review":
           return text(toolReview(ctx, a.base));
+        case "compress":
+          return text(toolCompress(ctx, String(a.content ?? ""), a.kind));
+        case "retrieve":
+          return text(toolRetrieve(ctx, String(a.hash ?? "")));
         default:
           return text(`Unknown tool: ${req.params.name}`);
       }
