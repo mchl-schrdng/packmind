@@ -46,6 +46,14 @@ Mode is set by `guard.lean.mode` in `config.json` (`off` | `lite` | `full`).
 - `handoff("get"|"set", content?)` — read or update the resume note.
 - `debt()`: list the `packmind:` deferred-shortcut markers left in the code.
 - `review(base?)`: package the current diff with the lean ladder to check a change for over-engineering.
+- `compress(content, kind?)`: shelve a large non-source output and get a compact preview + hash.
+- `retrieve(hash)`: get back the full original a `compress` call stored.
+
+## Compressing large output
+When you are holding a big non-source blob (a long log, a large JSON or API response, a
+command or search dump) that you do not need verbatim, call `compress(content)`. It stores
+the original locally and returns a compact, reversible preview plus a hash; call
+`retrieve(hash)` when you need the full text back. Never compress source code you need exact.
 
 ## When you finish meaningful work
 - `remember` durable lessons/preferences/decisions.
