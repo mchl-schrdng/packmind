@@ -44,6 +44,8 @@ Mode is set by `guard.lean.mode` in `config.json` (`off` | `lite` | `full`).
 - `project_map(filter?)` — list files with descriptions and token estimates.
 - `usage_report()` — token usage and dollar cost so far.
 - `handoff("get"|"set", content?)` — read or update the resume note.
+- `debt()`: list the `packmind:` deferred-shortcut markers left in the code.
+- `review(base?)`: package the current diff with the lean ladder to check a change for over-engineering.
 
 ## When you finish meaningful work
 - `remember` durable lessons/preferences/decisions.

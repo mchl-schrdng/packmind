@@ -43,6 +43,8 @@ exposes the project's memory as tools Claude can query directly.
   machine) lets Claude `recall(...)` past decisions, solutions, and code by meaning.
 - **Active guardrails** — a policy engine warns (or hard-blocks, opt-in) before a
   write touches a secret file or violates a project rule.
+- **Lean mode**: a reuse-first decision ladder that nudges Claude to build less
+  (`off` / `lite` / `full`), with a `packmind:` shortcut convention you harvest via `debt`.
 
 ## Quick start
 
@@ -68,6 +70,8 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `usage_report()` | Token usage and dollar cost for the project |
 | `insights()` | Savings, map coverage, heaviest files, and upkeep notes |
 | `handoff(action, content?)` | Read or update the session resume note |
+| `debt()` | List `packmind:` deferred-shortcut markers left in the code |
+| `review(base?)` | Package the current diff with the lean ladder for an over-engineering review |
 
 ## CLI
 
@@ -78,6 +82,7 @@ packmind scan --exact     Reconcile token counts via Anthropic count-tokens (nee
 packmind index            Build the local semantic recall index
 packmind recall <query>   Search project memory from the terminal
 packmind solutions <term> Search recorded fixes
+packmind debt             List packmind: deferred-shortcut markers (lean debt ledger)
 packmind status           Token usage, dollar cost, and health
 packmind insights         Where tokens go and what PackMind saved
 packmind dashboard        Open the local web dashboard (loopback, token-protected)
@@ -133,6 +138,7 @@ update` and stays forward-compatible. Notable keys:
   defaults are best-effort; set this to your account's actual pricing.
 - `recall.enabled` / `recall.embedModel` — local embeddings; fully offline.
 - `guard.blockSecrets` — set `true` to hard-block writes to secret files.
+- `guard.lean.mode` sets the reuse-first nudge before writes: `off` | `lite` | `full` (default `lite`).
 - `map.respectGitignore`, `map.extraSecretGlobs` — control what gets mapped.
 
 ## Privacy

@@ -707,6 +707,7 @@ async function renderConfig() {
     if (type === "boolean") ctl = `<input type="checkbox" data-k="${esc(key)}" data-t="boolean" ${v ? "checked" : ""} />`;
     else if (type === "number") ctl = `<input type="number" data-k="${esc(key)}" data-t="number" value="${esc(v ?? "")}" />`;
     else if (type === "exact") ctl = `<select data-k="${esc(key)}" data-t="exact">${["auto", "never", "always"].map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("")}</select>`;
+    else if (type === "leanMode") ctl = `<select data-k="${esc(key)}" data-t="leanMode">${["off", "lite", "full"].map(o => `<option ${o === v ? "selected" : ""}>${o}</option>`).join("")}</select>`;
     else if (type === "stringArray") ctl = `<input type="text" data-k="${esc(key)}" data-t="stringArray" value="${esc((v || []).join(", "))}" placeholder="comma, separated" />`;
     else ctl = `<input type="text" data-k="${esc(key)}" data-t="string" value="${esc(v ?? "")}" />`;
     return `<div class="frow"><label>${esc(key)}</label><div class="ctl">${ctl}</div></div>`;
