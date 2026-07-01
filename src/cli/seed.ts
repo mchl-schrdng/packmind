@@ -32,5 +32,8 @@ function seedIfMissing(name: string, dir: string): void {
 export function seedBrainFiles(brainDir: string): void {
   for (const name of CREATE_IF_MISSING) seedIfMissing(name, brainDir);
   copyTemplate("gitattributes", path.join(brainDir, ".gitattributes"));
-  copyTemplate("gitignore", path.join(brainDir, ".gitignore"));
+  // Seed .gitignore only when absent, so a user who tailors what they commit
+  // (e.g. tracks usage.json) is not silently reverted on `packmind update`.
+  const gitignore = path.join(brainDir, ".gitignore");
+  if (!fs.existsSync(gitignore)) copyTemplate("gitignore", gitignore);
 }
