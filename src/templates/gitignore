@@ -1,0 +1,8 @@
+# PackMind per-developer / ephemeral state (do not commit).
+# Committed brain files (map.md, knowledge.md, config.json, policy.json,
+# PACKMIND.md, and optionally journal.md / solutions.json) are intentionally
+# left tracked so project memory is shared.
+usage.json
+handoff.md
+recall/
+state/

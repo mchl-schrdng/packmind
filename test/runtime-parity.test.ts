@@ -56,4 +56,14 @@ describe("hook runtime parity", () => {
     const b = policy.evaluateWrite({ version: 1, rules: [] }, input);
     expect(a.block).toEqual(b.block);
   });
+
+  it("evaluateWrite matches for a path-shaped extraSecretGlobs case", () => {
+    // `config/**` only matches against the relative PATH, not the basename, so
+    // this guards against the canonical/hook drift where one dropped relPath.
+    const input = { relPath: "config/app.json", content: "", blockSecrets: true, extraSecretGlobs: ["config/**"] };
+    const a = rt.evaluateWrite([], input);
+    const b = policy.evaluateWrite({ version: 1, rules: [] }, input);
+    expect(a.block).toEqual(b.block);
+    expect(a.block).toBe(true); // the path glob must actually match
+  });
 });
