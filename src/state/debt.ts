@@ -11,7 +11,7 @@ export interface DebtItem {
 // A deferred-shortcut marker: a code comment leader (//, #, --, ;, /*, * ),
 // then a lowercase `packmind:`, then the note. Lowercase is deliberate so the
 // uppercase `PACKMIND:START`/`END` wiring sentinels are never harvested.
-const MARKER = /(?:\/\/+|#+|--|;+|\/\*+|\*)\s*packmind:\s*(.+?)\s*(?:\*\/\s*)?$/;
+const MARKER = /(?:\/\/|#{1,6}|--|;{1,3}|\/\*|\*)\s*packmind:\s*(.+?)\s*(?:\*\/\s*)?$/;
 
 /**
  * Scan project source for `packmind:` deferred-shortcut markers (the lean-mode

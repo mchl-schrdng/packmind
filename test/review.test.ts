@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import * as os from "node:os";
 import { reviewPayload, gitDiff } from "../src/state/review.js";
 
 describe("reviewPayload", () => {
@@ -18,5 +21,13 @@ describe("reviewPayload", () => {
 describe("gitDiff", () => {
   it("returns '' for a non-git directory instead of throwing", () => {
     expect(gitDiff("/nonexistent-path-xyz-123")).toBe("");
+  });
+
+  it("rejects an option-shaped base ref without invoking git (no file written)", () => {
+    // Without the guard, `git diff --output=<path>` would create/overwrite the file.
+    const marker = path.join(os.tmpdir(), `pm-inject-${process.pid}.txt`);
+    fs.rmSync(marker, { force: true });
+    expect(gitDiff(process.cwd(), `--output=${marker}`)).toBe("");
+    expect(fs.existsSync(marker)).toBe(false);
   });
 });

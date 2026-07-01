@@ -9,6 +9,10 @@ const LADDER =
  * caller can render a clean "nothing to review" message.
  */
 export function gitDiff(projectRoot: string, base?: string): string {
+  // `base` is a model-supplied argument. git parses a leading `-` as an option
+  // (e.g. `--output=<path>` would overwrite an arbitrary file), and a valid git
+  // ref never starts with `-`, so reject option-shaped refs outright.
+  if (base && base.startsWith("-")) return "";
   try {
     const args = base ? ["diff", base] : ["diff", "HEAD"];
     return execFileSync("git", args, {
