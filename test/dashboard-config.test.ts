@@ -28,6 +28,10 @@ describe("applyConfigPatch", () => {
     expect(okExact.errors).toEqual([]);
     const badExact = applyConfigPatch({}, { "cost.exact": "sometimes" });
     expect(badExact.errors[0]).toMatch(/type exact/);
+    const okLean = applyConfigPatch({}, { "guard.lean.mode": "full" });
+    expect(okLean.errors).toEqual([]);
+    const badLean = applyConfigPatch({}, { "guard.lean.mode": "max" });
+    expect(badLean.errors[0]).toMatch(/type leanMode/);
   });
 });
 

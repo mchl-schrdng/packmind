@@ -14,6 +14,7 @@ import { runDashboard } from "./dashboard-cmd.js";
 import { runInsights } from "./insights-cmd.js";
 import { runMaintain } from "./maintain-cmd.js";
 import { runBackup, runRestore } from "./backup-cmd.js";
+import { runDebt } from "./debt-cmd.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -58,6 +59,8 @@ export function createProgram(): Command {
     .action((q: string[]) => runRecall(q.join(" ")));
 
   program.command("solutions <term>").description("Search recorded bug solutions").action((t) => runSolutions(t));
+
+  program.command("debt").description("List `packmind:` deferred-shortcut markers (lean-mode debt ledger)").action(runDebt);
 
   const policy = program.command("policy").description("Guardrail policy");
   policy.command("check").description("Lint policy.json").action(runPolicyCheck);

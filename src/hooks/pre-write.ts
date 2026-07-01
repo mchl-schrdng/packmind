@@ -11,6 +11,9 @@ import {
   readText,
   parseInput,
   readStdin,
+  readSession,
+  writeSession,
+  leanNudge,
   emitContext,
   emitDeny,
   type Rule,
@@ -84,6 +87,17 @@ async function main(): Promise<void> {
       if (token && new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(content)) {
         notes.push(`knowledge.md Never-Do: "${entry}"`);
       }
+    }
+  }
+
+  // Lean-mode nudge: a reuse-first reminder at the moment code is about to land.
+  // In "lite" it latches once per session, so persist the session when it fires.
+  const session = readSession();
+  if (session) {
+    const lean = leanNudge(cfg.leanMode, session);
+    if (lean) {
+      notes.push(lean);
+      if (cfg.leanMode === "lite") writeSession(session);
     }
   }
 

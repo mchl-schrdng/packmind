@@ -356,6 +356,7 @@ export interface HookConfig {
   extraSecretGlobs: string[];
   blockSecrets: boolean;
   recallEnabled: boolean;
+  leanMode: string;
   prices: PriceOverrides;
 }
 export function hookConfig(): HookConfig {
@@ -365,6 +366,7 @@ export function hookConfig(): HookConfig {
     extraSecretGlobs: Array.isArray(raw?.map?.extraSecretGlobs) ? raw.map.extraSecretGlobs : [],
     blockSecrets: raw?.guard?.blockSecrets === true,
     recallEnabled: raw?.recall?.enabled !== false,
+    leanMode: typeof raw?.guard?.lean?.mode === "string" ? raw.guard.lean.mode : "lite",
     prices: raw?.cost?.prices && typeof raw.cost.prices === "object" ? raw.cost.prices : {},
   };
 }
@@ -438,6 +440,8 @@ export interface Session {
   /** Stop-hook reminder latches so each nudge fires at most once per session. */
   notifiedWrites?: boolean;
   notifiedEdits?: string[];
+  /** Lean-mode nudge latch (lite mode fires the ladder reminder once/session). */
+  notifiedLean?: boolean;
 }
 export function newSession(id: string): Session {
   return {
@@ -483,6 +487,22 @@ export function computeStopReminders(session: Session): string[] {
     session.notifiedEdits = [...already, ...heavy.map(([f]) => f)];
   }
   return reminders;
+}
+
+/**
+ * Lean-mode nudge: a one-line reminder to climb the decision ladder in
+ * PACKMIND.md (reuse what exists before writing new code) before a Write/Edit.
+ * "lite" latches once per session (mirrors computeStopReminders); "full" returns
+ * on every write; "off" or any other value is silent. Hook-only logic with no
+ * canonical twin; the caller persists the session when this latches.
+ */
+export function leanNudge(mode: string, session: Session): string | null {
+  if (mode !== "lite" && mode !== "full") return null;
+  if (mode === "lite") {
+    if (session.notifiedLean) return null;
+    session.notifiedLean = true;
+  }
+  return "Lean check: reuse what exists (this codebase, stdlib, installed deps) before adding new code. Climb the ladder in PACKMIND.md, and leave a `packmind:` note for any deferred shortcut.";
 }
 
 // --- recall queue (zero-dep enqueue) ----------------------------------------

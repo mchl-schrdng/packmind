@@ -3,6 +3,8 @@ import { brain } from "../state/files.js";
 import { loadConfig, type Config } from "../state/schema.js";
 import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
+import { harvestDebt } from "../state/debt.js";
+import { gitDiff, reviewPayload } from "../state/review.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { recall as recallSearch, indexSize } from "../recall/indexer.js";
 import { computeInsights } from "../cost/insights.js";
@@ -33,7 +35,7 @@ export async function toolRecall(ctx: ToolContext, query: string): Promise<strin
 }
 
 export function toolRemember(ctx: ToolContext, note: string, kind = "Notes"): string {
-  const heading = ["Preferences", "Decisions", "Never Do", "Notes"].includes(kind) ? kind : "Notes";
+  const heading = ["Preferences", "Decisions", "Never Do", "Notes", "Debt"].includes(kind) ? kind : "Notes";
   const file = brain(ctx.projectRoot).knowledge;
   const entry = `- ${new Date().toISOString().slice(0, 10)}: ${note}`;
   const lines = readTextOr(file).split(/\r?\n/);
@@ -146,6 +148,19 @@ export function toolHandoff(ctx: ToolContext, action: "get" | "set", content?: s
   }
   const text = readTextOr(file).trim();
   return text || "No handoff recorded yet.";
+}
+
+export function toolDebt(ctx: ToolContext): string {
+  const items = harvestDebt(ctx.projectRoot, ctx.config);
+  if (!items.length) return "No `packmind:` debt markers found.";
+  return [
+    `${items.length} deferred shortcut${items.length === 1 ? "" : "s"}:`,
+    ...items.map((i) => `  ${i.file}:${i.line}  ${i.note}`),
+  ].join("\n");
+}
+
+export function toolReview(ctx: ToolContext, base?: string): string {
+  return reviewPayload(gitDiff(ctx.projectRoot, base));
 }
 
 /** True if the project has been initialized. */
