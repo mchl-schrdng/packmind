@@ -147,6 +147,12 @@
   .jsession td.ja { color: var(--accent2); width: 110px; }
   .jempty { padding: 13px 20px; color: var(--faint); font-size: 13px; border-top: 1px solid var(--border); }
 
+  /* Knowledge: parsed sections */
+  .ksec .krow { display: flex; gap: 14px; align-items: baseline; padding: 9px 20px; border-top: 1px solid var(--border); font-size: 13.5px; }
+  .ksec .kdate { color: var(--faint); font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; width: 84px; }
+  .ksec .ktext { color: var(--text); min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+  .ksec .kempty { padding: 12px 20px; color: var(--faint); font-size: 13px; border-top: 1px solid var(--border); }
+
   .actrow { display: flex; gap: 14px; align-items: baseline; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
   .actrow:last-child { border-bottom: none; }
   .actrow .t { color: var(--faint); font-variant-numeric: tabular-nums; width: 46px; flex: none; }
@@ -616,9 +622,40 @@ async function renderSolutions() {
     }</tbody></table>` : '<div class="empty">No recorded solutions yet. Claude logs fixes here with the <code>record_solution</code> tool.</div>'}</div>`;
 }
 
+// Parse knowledge.md (## Section headings, `- YYYY-MM-DD: text` entries) into
+// sections so the tab can render cards instead of raw markdown. The intro prose
+// before the first `##` is skipped.
+function parseKnowledge(text) {
+  const sections = [];
+  let cur = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.replace(/\s+$/, "");
+    const h = line.match(/^##\s+(.+?)\s*$/);
+    if (h) { cur = { title: h[1], entries: [] }; sections.push(cur); continue; }
+    if (!cur) continue;
+    const m = line.match(/^[-*]\s+(?:(\d{4}-\d{2}-\d{2})\s*:\s*)?(.*\S)\s*$/);
+    if (m) { cur.entries.push({ date: m[1] || "", text: m[2] }); continue; }
+    if (line.trim() && cur.entries.length) cur.entries[cur.entries.length - 1].text += " " + line.trim();
+  }
+  return sections;
+}
+
+// Escape, then render `inline code` spans (the content is already escaped, so safe).
+const mdInline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
+
 async function renderKnowledge() {
   const k = await api("/api/knowledge");
-  $("view").innerHTML = `<div class="panel"><pre class="raw">${esc((k.text || "").trim() || "knowledge.md is empty.")}</pre></div>`;
+  const text = (k.text || "").trim();
+  if (!text) { $("view").innerHTML = '<div class="panel"><div class="empty">knowledge.md is empty.</div></div>'; return; }
+  const sections = parseKnowledge(text);
+  if (!sections.length) { $("view").innerHTML = `<div class="panel"><pre class="raw">${esc(text)}</pre></div>`; return; }
+  $("view").innerHTML = sections.map(s => `
+    <div class="panel ksec">
+      <div class="jhead"><span class="jtime">${esc(s.title)}</span><span class="jstats">${s.entries.length ? `<span class="jchip">${s.entries.length}</span>` : ""}</span></div>
+      ${s.entries.length
+        ? s.entries.map(e => `<div class="krow">${e.date ? `<span class="kdate">${esc(e.date)}</span>` : ""}<span class="ktext">${mdInline(e.text)}</span></div>`).join("")
+        : '<div class="kempty">No entries yet.</div>'}
+    </div>`).join("");
 }
 
 // Parse journal.md (## session header, pipe table of actions, > summary lines)
