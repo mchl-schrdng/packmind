@@ -5,7 +5,7 @@ import { brain } from "./files.js";
 import { userRoot } from "../util/platform.js";
 
 /** Root for all project backups: ~/.packmind/backups/<project>/<timestamp>/ */
-export function backupsRoot(): string {
+function backupsRoot(): string {
   return path.join(userRoot(), "backups");
 }
 

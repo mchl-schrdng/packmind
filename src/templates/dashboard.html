@@ -321,7 +321,7 @@ function barsH(rows, opts) {
   return `<div class="barsh">` + rows.map(r => `
     <div class="barh">
       <div class="barh-label" title="${esc(r.label)}">${esc(r.label)}</div>
-      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%${r.color ? ";background:" + r.color : ""}"></div></div>
+      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%${r.color ? ";background:" + esc(r.color) : ""}"></div></div>
       <div class="barh-val">${esc(o.fmt(r.value))}</div>
     </div>`).join("") + `</div>`;
 }

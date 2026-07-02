@@ -15,10 +15,6 @@ export function confineToRoot(root: string, candidate: string): string | null {
   return resolved;
 }
 
-export function withinRoot(root: string, candidate: string): boolean {
-  return confineToRoot(root, candidate) !== null;
-}
-
 /** Equal-path test by full resolution (avoids suffix-match false positives). */
 export function samePath(root: string, a: string, b: string): boolean {
   const ra = confineToRoot(root, a);

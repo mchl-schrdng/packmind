@@ -136,9 +136,9 @@ async function main(): Promise<void> {
     if (!isInitialized(projectRoot)) {
       return text("PackMind is not initialized in this project. Run `packmind init`.");
     }
-    const ctx = makeContext(projectRoot);
     const a = (req.params.arguments ?? {}) as Record<string, any>;
     try {
+      const ctx = makeContext(projectRoot);
       switch (req.params.name) {
         case "recall":
           return text(await toolRecall(ctx, String(a.query ?? "")));

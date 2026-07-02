@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import { brain } from "../state/files.js";
 import { loadConfig, type Config } from "../state/schema.js";
-import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../util/fs-atomic.js";
+import { readJsonOr, writeJson, readTextOr, writeText } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
 import { gitDiff, reviewPayload } from "../state/review.js";
@@ -36,6 +36,7 @@ export async function toolRecall(ctx: ToolContext, query: string): Promise<strin
 }
 
 export function toolRemember(ctx: ToolContext, note: string, kind = "Notes"): string {
+  if (!note.trim()) return "Nothing to remember (empty note).";
   const heading = ["Preferences", "Decisions", "Never Do", "Notes", "Debt"].includes(kind) ? kind : "Notes";
   const file = brain(ctx.projectRoot).knowledge;
   const entry = `- ${new Date().toISOString().slice(0, 10)}: ${note}`;
@@ -65,6 +66,7 @@ export function toolRecordSolution(
   ctx: ToolContext,
   args: { error: string; cause?: string; fix?: string; tags?: string[]; file?: string },
 ): string {
+  if (!args.error.trim()) return "Nothing to record (empty error).";
   const path = brain(ctx.projectRoot).solutions;
   const list = readJsonOr<any[]>(path, []);
   const now = new Date().toISOString();

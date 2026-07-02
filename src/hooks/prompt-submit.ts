@@ -1,7 +1,6 @@
 import {
   requireState,
   brainPath,
-  readText,
   readJson,
   parseInput,
   readStdin,
