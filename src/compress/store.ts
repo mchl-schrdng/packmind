@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { brain } from "../state/files.js";
-import { readJsonOr, writeJson, writeText } from "../util/fs-atomic.js";
+import { updateJson, writeText } from "../util/fs-atomic.js";
 
 // Content-addressed store of large NON-source blobs Claude has shelved. The
 // original is kept verbatim on disk and returned by retrieve(); compress() hands
@@ -86,15 +86,18 @@ export function store(projectRoot: string, content: string, kind = "text"): { ha
   const b = brain(projectRoot);
   fs.mkdirSync(b.compressDir, { recursive: true });
   const bytes = Buffer.byteLength(content, "utf8");
-  const hash = crypto.createHash("sha256").update(content).digest("hex").slice(0, 12);
+  const hash = crypto.createHash("sha256").update(content).digest("hex").slice(0, 16);
   writeText(path.join(b.compressDir, hash), content);
 
-  const index = readJsonOr<BlobMeta[]>(b.compressIndex, []);
-  if (!index.some((m) => m.hash === hash)) {
-    index.push({ hash, bytes, kind, createdAt: new Date().toISOString() });
-  }
-  prune(b.compressDir, index, hash);
-  writeJson(b.compressIndex, index);
+  // Update the index under one lock (read + prune + write) so concurrent stores
+  // can't lose an entry or evict a blob another call just wrote.
+  updateJson<BlobMeta[]>(b.compressIndex, [], (index) => {
+    if (!index.some((m) => m.hash === hash)) {
+      index.push({ hash, bytes, kind, createdAt: new Date().toISOString() });
+    }
+    prune(b.compressDir, index, hash);
+    return index;
+  });
 
   return { hash, bytes, preview: compact(content, hash) };
 }

@@ -112,3 +112,15 @@ export function readJsonOr<T>(target: string, fallback: T): T {
 export function writeJson(target: string, value: unknown): void {
   withLock(target, () => writeAtomic(target, JSON.stringify(value, null, 2) + "\n"));
 }
+
+/**
+ * Read-modify-write a JSON file atomically: the read and the write happen inside
+ * one lock, so concurrent writers can't lose each other's update (the failure
+ * mode of a plain readJsonOr + writeJson pair).
+ */
+export function updateJson<T>(target: string, fallback: T, update: (current: T) => T): void {
+  withLock(target, () => {
+    const current = readJsonOr<T>(target, fallback);
+    writeAtomic(target, JSON.stringify(update(current), null, 2) + "\n");
+  });
+}

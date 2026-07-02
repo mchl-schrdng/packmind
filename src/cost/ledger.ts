@@ -58,6 +58,9 @@ export function totalCost(l: UsageLedger): number {
 /** Fold a finished session into the lifetime ledger. */
 export function commitSession(projectRoot: string, model: string, s: SessionState): void {
   const ledger = readLedger(projectRoot, model);
+  // Idempotency: committing the same session twice would double-count every
+  // total, so skip if this session id was already folded in.
+  if (ledger.sessions.some((x) => x.id === s.id)) return;
   const reads = Object.keys(s.reads).length;
   ledger.sessions.push({
     id: s.id,
