@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A second brain for Claude Code.</strong><br />
-  Project memory, real token &amp; cost accounting, local semantic recall, and active guardrails — through lifecycle hooks and an MCP server. Zero workflow changes.
+  Project memory, real token &amp; cost accounting, local semantic recall, and active guardrails - through lifecycle hooks and an MCP server. Zero workflow changes.
 </p>
 
 <p align="center">
@@ -21,7 +21,7 @@
 ---
 
 <p align="center">
-  <img src="assets/dashboard.gif" alt="PackMind dashboard — Overview, Insights, Project Map, Journal, and Recall" width="800" />
+  <img src="assets/dashboard.gif" alt="PackMind dashboard - Overview, Insights, Project Map, Journal, and Recall" width="800" />
 </p>
 
 ---
@@ -34,17 +34,20 @@ forgets what it learned last session. PackMind fixes that with a small state
 directory (`.packmind/`) maintained by lifecycle hooks, plus an MCP server that
 exposes the project's memory as tools Claude can query directly.
 
-- **Project map** — every file gets a one-line description, a token estimate, and
+- **Project map** - every file gets a one-line description, a token estimate, and
   an estimated read cost, so Claude reads `map.md` instead of opening files blind.
-- **Real token &amp; cost accounting** — fast local estimates always, reconciled to
+- **Real token &amp; cost accounting** - fast local estimates always, reconciled to
   exact counts via Anthropic's count-tokens API when a key is present, priced per
   model into a running **dollar total**.
-- **Local semantic recall** — an on-device embedding index (nothing leaves your
+- **Local semantic recall** - an on-device embedding index (nothing leaves your
   machine) lets Claude `recall(...)` past decisions, solutions, and code by meaning.
-- **Active guardrails** — a policy engine warns (or hard-blocks, opt-in) before a
+- **Active guardrails** - a policy engine warns (or hard-blocks, opt-in) before a
   write touches a secret file or violates a project rule.
 - **Lean mode**: a reuse-first decision ladder that nudges Claude to build less
   (`off` / `lite` / `full`), with a `packmind:` shortcut convention you harvest via `debt`.
+- **Reversible compression** - shelve a large non-source output (log, JSON, command dump)
+  with `compress(...)` and pull the exact original back with `retrieve(hash)`, to keep the
+  session's context lean.
 
 ## Quick start
 
@@ -72,6 +75,8 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `handoff(action, content?)` | Read or update the session resume note |
 | `debt()` | List `packmind:` deferred-shortcut markers left in the code |
 | `review(base?)` | Package the current diff with the lean ladder for an over-engineering review |
+| `compress(content, kind?)` | Shelve a large non-source output, get a compact reversible preview + hash |
+| `retrieve(hash)` | Return the full original a `compress` call stored |
 
 ## CLI
 
@@ -89,7 +94,6 @@ packmind dashboard        Open the local web dashboard (loopback, token-protecte
 packmind maintain         One-shot upkeep: scan + reindex + archive + prune (cron-friendly)
 packmind backup [--list]  Snapshot .packmind/ to ~/.packmind/backups
 packmind restore [stamp]  Restore .packmind/ from a backup (omit to list)
-packmind solutions <term> Search recorded fixes
 packmind policy check     Lint guardrail rules
 packmind doctor           Diagnose projects, hooks, and MCP registration
 packmind update           Update registered projects (snapshots first, preserves config.json)
@@ -102,6 +106,7 @@ packmind mcp              Run the MCP server (used by Claude Code)
 |------|------|---------|
 | `map.md` | File map with tokens &amp; cost | yes |
 | `knowledge.md` | Preferences, decisions, never-do list | yes |
+| `identity.md` | Persistent project identity notes | yes |
 | `config.json` | Configuration | yes |
 | `policy.json` | Guardrail rules | yes |
 | `PACKMIND.md` | Protocol Claude follows | yes |
@@ -109,16 +114,17 @@ packmind mcp              Run the MCP server (used by Claude Code)
 | `solutions.json` | Recorded fixes | optional |
 | `usage.json` | Token &amp; cost ledger | no (per-dev) |
 | `handoff.md` | Session resume note | no (per-dev) |
+| `compress/` | Reversible shelved-output store | no (per-dev) |
 | `recall/` | Local vector index | no (per-dev) |
 
 ## Scheduled maintenance (no daemon)
 
 Instead of a background daemon, PackMind ships a single `maintain` command you
-schedule yourself — it refreshes the map, rebuilds the recall index, archives an
+schedule yourself - it refreshes the map, rebuilds the recall index, archives an
 overgrown journal, and prunes old backups. Wire it into your own scheduler:
 
 ```cron
-# crontab -e  — keep a project's brain fresh every night at 2am
+# crontab -e  - keep a project's brain fresh every night at 2am
 0 2 * * * cd /path/to/project && packmind maintain --quiet
 ```
 
@@ -129,17 +135,17 @@ No persistent process, no open ports, no state to leak.
 `.packmind/config.json` is deep-merged over defaults, so it survives `packmind
 update` and stays forward-compatible. Notable keys:
 
-- `model` — drives cost pricing (`claude-opus-4-8` by default).
-- `cost.exact` — when `scan` reconciles to exact counts: `auto` (exact when
+- `model` - drives cost pricing (`claude-opus-4-8` by default).
+- `cost.exact` - when `scan` reconciles to exact counts: `auto` (exact when
   `ANTHROPIC_API_KEY` is set) | `never` | `always`. You can always force it per-run
   with `packmind scan --exact`. Hooks always use the fast local estimate.
-- `cost.prices` — override the built-in (approximate) per-model rates, e.g.
+- `cost.prices` - override the built-in (approximate) per-model rates, e.g.
   `{ "claude-opus-4-8": { "inputPerMTok": 15, "outputPerMTok": 75 } }`. The
   defaults are best-effort; set this to your account's actual pricing.
-- `recall.enabled` / `recall.embedModel` — local embeddings; fully offline.
-- `guard.blockSecrets` — set `true` to hard-block writes to secret files.
+- `recall.enabled` / `recall.embedModel` - local embeddings; fully offline.
+- `guard.blockSecrets` - set `true` to hard-block writes to secret files.
 - `guard.lean.mode` sets the reuse-first nudge before writes: `off` | `lite` | `full` (default `lite`).
-- `map.respectGitignore`, `map.extraSecretGlobs` — control what gets mapped.
+- `map.respectGitignore`, `map.extraSecretGlobs` - control what gets mapped.
 
 ## Privacy
 
@@ -155,7 +161,7 @@ Anthropic's count-tokens endpoint, used solely when you enable exact counting.
 - **Core dependencies carry no known high/critical advisories.** The only source
   of transitive advisories is the **optional** local-recall dependency
   (`@xenova/transformers`), which bundles an older ML runtime. It is never
-  required — install without it (`npm install packmind --omit=optional`) for a
+  required - install without it (`npm install packmind --omit=optional`) for a
   CVE-clean tree, or set `recall.enabled: false`. Migrating recall to the
   maintained `@huggingface/transformers` is tracked future work.
 - **Code scanning** via CodeQL runs when the repository is public (or has GitHub

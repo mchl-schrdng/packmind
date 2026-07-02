@@ -5,8 +5,8 @@ export interface Chunk {
 }
 
 /**
- * Split text into overlapping windows of roughly `size` characters, breaking on
- * line boundaries where possible so chunks stay semantically coherent.
+ * Split text into windows of roughly `size` characters, breaking on line
+ * boundaries where possible so chunks stay semantically coherent.
  */
 export function chunkText(text: string, source: string, kind: string, size = 1200): Chunk[] {
   const clean = text.trim();

@@ -16,7 +16,7 @@ export function runStatus(): void {
   const vectors = new VectorStore(brain(projectRoot).vectors).size();
   const pending = peekQueue(projectRoot).length;
 
-  console.log(chalk.bold.cyan("\nPackMind — ") + chalk.bold(path.basename(projectRoot)));
+  console.log(chalk.bold.cyan("\nPackMind - ") + chalk.bold(path.basename(projectRoot)));
   console.log(`  model:     ${ledger.model}`);
   console.log(`  map:       ${files} files`);
   console.log(`  recall:    ${vectors} vectors indexed` + (pending ? chalk.dim(` (${pending} queued)`) : ""));

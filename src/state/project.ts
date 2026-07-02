@@ -14,7 +14,7 @@ const ROOT_MARKERS = [
  * `.packmind/`. Never ascends above the user's home directory.
  *
  * The global cache lives at `~/.packmind` (see {@link userRoot}) and shares the
- * `.packmind` name with per-project state, so it is explicitly excluded here —
+ * `.packmind` name with per-project state, so it is explicitly excluded here -
  * otherwise a marker-less directory under home would resolve up to the home
  * directory and trip the init guard.
  */

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
 import { brain } from "../state/files.js";
 import { loadConfig, type Config } from "../state/schema.js";
-import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../util/fs-atomic.js";
+import { readJsonOr, writeJson, readTextOr, writeText } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
 import { gitDiff, reviewPayload } from "../state/review.js";
@@ -28,7 +28,7 @@ export async function toolRecall(ctx: ToolContext, query: string): Promise<strin
   const hits = await recallSearch(ctx.projectRoot, ctx.config, ctx.embedder, query);
   if (hits.length === 0)
     return indexSize(ctx.projectRoot, ctx.config) === 0
-      ? "Recall index isn't built yet — run `packmind index` to enable semantic search."
+      ? "Recall index isn't built yet - run `packmind index` to enable semantic search."
       : "No relevant memory found for that query.";
   return hits
     .map((h, i) => `${i + 1}. [${h.kind} · ${h.source} · score ${h.score.toFixed(2)}]\n${h.text.slice(0, 600)}`)
@@ -36,6 +36,7 @@ export async function toolRecall(ctx: ToolContext, query: string): Promise<strin
 }
 
 export function toolRemember(ctx: ToolContext, note: string, kind = "Notes"): string {
+  if (!note.trim()) return "Nothing to remember (empty note).";
   const heading = ["Preferences", "Decisions", "Never Do", "Notes", "Debt"].includes(kind) ? kind : "Notes";
   const file = brain(ctx.projectRoot).knowledge;
   const entry = `- ${new Date().toISOString().slice(0, 10)}: ${note}`;
@@ -65,6 +66,7 @@ export function toolRecordSolution(
   ctx: ToolContext,
   args: { error: string; cause?: string; fix?: string; tags?: string[]; file?: string },
 ): string {
+  if (!args.error.trim()) return "Nothing to record (empty error).";
   const path = brain(ctx.projectRoot).solutions;
   const list = readJsonOr<any[]>(path, []);
   const now = new Date().toISOString();
@@ -81,7 +83,7 @@ export function toolRecordSolution(
     for (const tag of args.tags ?? []) if (!existing.tags?.includes(tag)) (existing.tags ??= []).push(tag);
     writeJson(path, list);
     enqueue(ctx.projectRoot, ".packmind/solutions.json");
-    return `Updated existing solution ${existing.id} — now seen ${existing.occurrences} times.`;
+    return `Updated existing solution ${existing.id} - now seen ${existing.occurrences} times.`;
   }
 
   const entry = {
@@ -107,10 +109,10 @@ export function toolProjectMap(ctx: ToolContext, filter?: string): string {
   for (const [section, entries] of map) {
     const rows = entries
       .filter((e) => !filter || (section + e.file).toLowerCase().includes(filter.toLowerCase()))
-      .map((e) => `  ${section}${e.file} — ${e.description || "?"} (~${e.tokens} tok)`);
+      .map((e) => `  ${section}${e.file} - ${e.description || "?"} (~${e.tokens} tok)`);
     if (rows.length) out.push(`${section}\n${rows.join("\n")}`);
   }
-  return out.length ? out.join("\n") : "Map is empty — run `packmind scan`.";
+  return out.length ? out.join("\n") : "Map is empty - run `packmind scan`.";
 }
 
 export function toolInsights(ctx: ToolContext): string {
@@ -122,7 +124,7 @@ export function toolInsights(ctx: ToolContext): string {
   ];
   if (r.topFiles.length) {
     lines.push("Heaviest files:");
-    for (const f of r.topFiles) lines.push(`  ${f.file} — ~${f.tokens} tok ($${f.cost.toFixed(4)})`);
+    for (const f of r.topFiles) lines.push(`  ${f.file} - ~${f.tokens} tok ($${f.cost.toFixed(4)})`);
   }
   for (const f of r.flags) lines.push(`[${f.level}] ${f.title}: ${f.detail}`);
   const blobs = readJsonOr<BlobMeta[]>(brain(ctx.projectRoot).compressIndex, []);

@@ -94,10 +94,10 @@ async function main(): Promise<void> {
   session.outputCost += outputCost(cfg.model, tokens, cfg.prices);
   writeSession(session);
 
-  if (session.editCounts[rel] >= 4) {
+  if (session.editCounts[rel] === 4) {
     emitContext(
       "PostToolUse",
-      `You've edited \`${rel}\` ${session.editCounts[rel]} times this session — consider a different approach and record the lesson via the \`remember\` tool.`,
+      `You've edited \`${rel}\` several times this session. Consider a different approach and record the lesson via the \`remember\` tool.`,
     );
   }
 }

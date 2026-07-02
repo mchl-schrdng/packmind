@@ -1,7 +1,7 @@
 /**
  * Exact token counting via Anthropic's count-tokens endpoint. Used only by the
  * CLI and MCP server (never in the synchronous hook path). Returns null when no
- * API key is configured or the request fails — callers fall back to estimates.
+ * API key is configured or the request fails - callers fall back to estimates.
  */
 export async function countTokensExact(
   text: string,

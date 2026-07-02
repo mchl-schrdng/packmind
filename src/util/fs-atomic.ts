@@ -50,7 +50,7 @@ export function withLock<T>(target: string, body: () => T): T {
 
   // Never run the body unlocked: a concurrent writer still holds the lock, so
   // proceeding here would risk a lost update to a shared file (usage.json,
-  // session state, the map, queues). Fail loudly instead — callers (fail-safe
+  // session state, the map, queues). Fail loudly instead - callers (fail-safe
   // hooks, or the CLI/MCP) decide how to handle it.
   if (!held) {
     throw new Error(`packmind: could not acquire lock for ${target} (held by another writer)`);
@@ -111,4 +111,16 @@ export function readJsonOr<T>(target: string, fallback: T): T {
 
 export function writeJson(target: string, value: unknown): void {
   withLock(target, () => writeAtomic(target, JSON.stringify(value, null, 2) + "\n"));
+}
+
+/**
+ * Read-modify-write a JSON file atomically: the read and the write happen inside
+ * one lock, so concurrent writers can't lose each other's update (the failure
+ * mode of a plain readJsonOr + writeJson pair).
+ */
+export function updateJson<T>(target: string, fallback: T, update: (current: T) => T): void {
+  withLock(target, () => {
+    const current = readJsonOr<T>(target, fallback);
+    writeAtomic(target, JSON.stringify(update(current), null, 2) + "\n");
+  });
 }

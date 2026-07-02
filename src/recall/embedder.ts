@@ -8,7 +8,7 @@ export interface Embedder {
 
 /**
  * Local, offline embedder backed by transformers.js (WASM). The model is
- * downloaded once and cached under ~/.packmind/models — no API key, no network
+ * downloaded once and cached under ~/.packmind/models - no API key, no network
  * after the first run, nothing leaves the machine.
  */
 export class LocalEmbedder implements Embedder {
@@ -25,7 +25,7 @@ export class LocalEmbedder implements Embedder {
     if (this.pipe) return this.pipe;
     let mod: any;
     try {
-      // Resolved at runtime only — the package is an OPTIONAL dependency, so a
+      // Resolved at runtime only - the package is an OPTIONAL dependency, so a
       // non-literal specifier keeps `tsc` from requiring it at compile time
       // (it isn't installed in CI's --no-optional build).
       const pkg = "@xenova/transformers";

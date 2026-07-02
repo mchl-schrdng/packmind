@@ -115,4 +115,17 @@ describe("usage ledger", () => {
     expect(ledger.totals.dedupedReads).toBe(5);
     expect(ledger.totals.mapHits).toBe(8);
   });
+
+  it("does not double-count when the same session is committed twice", () => {
+    const dir = makeProject();
+    fs.writeFileSync(brain(dir).usage, JSON.stringify(emptyLedger("claude-opus-4-8")));
+    const s = emptySession("s-dup");
+    s.inputTokens = 1000;
+    commitSession(dir, "claude-opus-4-8", s);
+    commitSession(dir, "claude-opus-4-8", s); // idempotent: same id ignored
+    const ledger = readLedger(dir, "claude-opus-4-8");
+    expect(ledger.sessions).toHaveLength(1);
+    expect(ledger.totals.inputTokens).toBe(1000);
+    expect(ledger.totals.sessions).toBe(1);
+  });
 });

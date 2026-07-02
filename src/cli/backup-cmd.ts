@@ -6,7 +6,7 @@ import { brain } from "../state/files.js";
 import { createSnapshot, listSnapshots, restoreSnapshot } from "../state/snapshot.js";
 
 export function runBackup(opts: { list?: boolean } = {}): void {
-  // Listing must work even if the brain is broken — resolve the root directly.
+  // Listing must work even if the brain is broken - resolve the root directly.
   const projectRoot = opts.list ? findRoot() : requireProject().projectRoot;
   if (opts.list) {
     const snaps = listSnapshots(projectRoot);

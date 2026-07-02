@@ -36,7 +36,7 @@ function main(): void {
 
   appendLine(
     brainPath("journal.md"),
-    `\n## ${id} — ${now.toISOString()}\n\n| Time | Action | File | Tokens |\n|------|--------|------|--------|\n`,
+    `\n## ${id} - ${now.toISOString()}\n\n| Time | Action | File | Tokens |\n|------|--------|------|--------|\n`,
   );
 
   const parts: string[] = [];

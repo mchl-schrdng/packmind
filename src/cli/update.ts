@@ -46,14 +46,13 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
 
   // config.json: deep-merge template defaults UNDER the user's existing config,
   // preserving any values they customized while adding new keys.
-  const existing = readJsonOr<Partial<Config>>(b.config, {});
-  writeJson(b.config, deepMerge(DEFAULT_CONFIG, existing));
+  const config = deepMerge(DEFAULT_CONFIG, readJsonOr<Partial<Config>>(b.config, {}));
+  writeJson(b.config, config);
 
   fs.mkdirSync(b.hooksDir, { recursive: true });
   for (const s of HOOK_SCRIPTS) copy(path.join(HOOKS_DIST_DIR, s), path.join(b.hooksDir, s));
   copy(path.join(TEMPLATES_DIR, "hooks-package.json"), path.join(b.hooksDir, "package.json"));
 
-  const config = deepMerge(DEFAULT_CONFIG, existing);
   registerHooks(path.join(entry.root, config.claude.settingsPath));
   registerMcp(path.join(entry.root, ".mcp.json"));
   registerProject(entry.root, pkgVersion());

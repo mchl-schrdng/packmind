@@ -278,7 +278,7 @@ function areaChart(values, opts) {
   </svg>`;
 }
 
-// Vertical stacked bars — rows: [{ label, values: [s0, s1, ...] }] stacked in series order.
+// Vertical stacked bars. rows: [{ label, values: [s0, s1, ...] }] stacked in series order.
 function barsV(rows, opts) {
   const o = Object.assign({ w: 760, h: 200, pad: 30, fmt: (v) => v, series: [] }, opts || {});
   if (!rows.length) return '<div class="empty">No session data yet.</div>';
@@ -321,7 +321,7 @@ function barsH(rows, opts) {
   return `<div class="barsh">` + rows.map(r => `
     <div class="barh">
       <div class="barh-label" title="${esc(r.label)}">${esc(r.label)}</div>
-      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%${r.color ? ";background:" + r.color : ""}"></div></div>
+      <div class="barh-track"><div class="barh-fill" style="width:${Math.max(2, (r.value / max) * 100).toFixed(1)}%${r.color ? ";background:" + esc(r.color) : ""}"></div></div>
       <div class="barh-val">${esc(o.fmt(r.value))}</div>
     </div>`).join("") + `</div>`;
 }
@@ -607,7 +607,7 @@ async function renderRecall() {
       ? hits.map(h => `<div class="hit"><div class="h"><span class="kind">${esc(h.kind)}</span><span class="src">${esc(h.source)}</span><span class="score">${(h.score||0).toFixed(2)}</span></div><pre>${esc((h.text||"").slice(0, 600))}</pre></div>`).join("")
       : (indexed
           ? '<div class="empty">No matches for that query.</div>'
-          : '<div class="empty">Recall index isn\'t built yet — run <code>packmind index</code> to enable semantic search.</div>');
+          : '<div class="empty">Recall index isn\'t built yet: run <code>packmind index</code> to enable semantic search.</div>');
   };
   $("rgo").onclick = run;
   $("rq").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
@@ -775,7 +775,7 @@ async function renderConfig() {
         }</tbody></table>` : '<div class="empty">No hooks registered.</div>'}
         <h3 class="sub" style="margin:18px 0 10px">MCP servers</h3>
         ${(claude.mcpServers && claude.mcpServers.length) ? claude.mcpServers.map(m => `<div class="actrow"><span class="a">${esc(m.name)}</span><span class="f"><code>${esc(m.command)} ${esc((m.args || []).join(" "))}</code></span></div>`).join("") : '<div class="empty">No MCP servers registered.</div>'}
-        <p class="muted" style="margin-top:14px;font-size:12.5px">Editing hooks here is intentionally disabled — manage them with <code>packmind init</code> or your Claude Code settings.</p>
+        <p class="muted" style="margin-top:14px;font-size:12.5px">Editing hooks here is intentionally disabled: manage them with <code>packmind init</code> or your Claude Code settings.</p>
       </div>
     </div>`;
 

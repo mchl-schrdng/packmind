@@ -1,17 +1,17 @@
-# PACKMIND.md — Operating Protocol
+# PACKMIND.md - Operating Protocol
 
 PackMind gives you (Claude) a persistent second brain for this project, stored in
 `.packmind/`. It surfaces context automatically through hooks and exposes tools
 through the **packmind** MCP server. Follow this protocol each session.
 
 ## Before reading a file
-- Check `map.md` first — if a file's description and token/cost estimate answer
+- Check `map.md` first - if a file's description and token/cost estimate answer
   your question, don't open the whole file.
 - Don't re-read a file you already read this session unless it changed.
 
 ## Before writing code
 - Heed any guardrail warnings (they reference `policy.json` and the secrets
-  denylist). A blocked write means policy forbids it — choose another path.
+  denylist). A blocked write means policy forbids it - choose another path.
 - Honor the `## Never Do` list in `knowledge.md`.
 
 ## Lean by default: the decision ladder
@@ -36,14 +36,15 @@ index if N grows`.
 Mode is set by `guard.lean.mode` in `config.json` (`off` | `lite` | `full`).
 
 ## Use the MCP tools
-- `recall("…")` — semantic search across project memory. Use it before
+- `recall("…")` - semantic search across project memory. Use it before
   investigating a bug or re-deriving how something works.
-- `remember(note, kind)` — save a preference, decision, never-do rule, or note.
-- `record_solution(error, cause, fix, tags)` — log a fix so it's never
+- `remember(note, kind)` - save a preference, decision, never-do rule, or note.
+- `record_solution(error, cause, fix, tags)` - log a fix so it's never
   rediscovered.
-- `project_map(filter?)` — list files with descriptions and token estimates.
-- `usage_report()` — token usage and dollar cost so far.
-- `handoff("get"|"set", content?)` — read or update the resume note.
+- `project_map(filter?)` - list files with descriptions and token estimates.
+- `usage_report()` - token usage and dollar cost so far.
+- `insights()` - where tokens go and what PackMind saved (savings, coverage, heaviest files).
+- `handoff("get"|"set", content?)` - read or update the resume note.
 - `debt()`: list the `packmind:` deferred-shortcut markers left in the code.
 - `review(base?)`: package the current diff with the lean ladder to check a change for over-engineering.
 - `compress(content, kind?)`: shelve a large non-source output and get a compact preview + hash.
@@ -70,4 +71,6 @@ the original locally and returns a compact, reversible preview plus a hash; call
 | `usage.json` | Token + dollar-cost ledger |
 | `handoff.md` | Session resume note |
 | `policy.json` | Guardrail rules |
+| `config.json` | PackMind configuration |
 | `recall/` | Local semantic index (never leaves your machine) |
+| `compress/` | Reversible store for shelved large outputs |

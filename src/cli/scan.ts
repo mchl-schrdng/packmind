@@ -8,10 +8,10 @@ export async function runScan(opts: { check?: boolean; exact?: boolean } = {}): 
   const { projectRoot, config } = requireProject();
 
   if (opts.check) {
-    // Real staleness: compares descriptions, tokens, cost and the file set —
+    // Real staleness: compares descriptions, tokens, cost and the file set -
     // not just the file count.
     if (mapIsStale(projectRoot, config)) {
-      console.error(chalk.yellow("map.md is stale — run `packmind scan`."));
+      console.error(chalk.yellow("map.md is stale - run `packmind scan`."));
       process.exit(1);
     }
     console.log(chalk.green("✓ map.md is up to date."));
@@ -22,7 +22,7 @@ export async function runScan(opts: { check?: boolean; exact?: boolean } = {}): 
   if (useExact) {
     const hasKey = Boolean(process.env.ANTHROPIC_API_KEY);
     if (!hasKey) {
-      console.log(chalk.yellow("Exact counting needs ANTHROPIC_API_KEY — using estimates instead."));
+      console.log(chalk.yellow("Exact counting needs ANTHROPIC_API_KEY - using estimates instead."));
       const count = scanProject(projectRoot, config);
       console.log(chalk.cyan(`✓ Mapped ${count} files into map.md`));
       return;
@@ -43,7 +43,7 @@ export async function runScan(opts: { check?: boolean; exact?: boolean } = {}): 
     const count = await scanProjectWith(projectRoot, config, counter);
     // Report honestly: only claim "exact" for the files that actually got it.
     if (exactHits === 0) {
-      console.log(chalk.yellow(`✓ Mapped ${count} files into map.md (exact unavailable — all estimated)`));
+      console.log(chalk.yellow(`✓ Mapped ${count} files into map.md (exact unavailable - all estimated)`));
     } else if (fellBack > 0) {
       console.log(chalk.cyan(`✓ Mapped ${count} files into map.md (${exactHits} exact, ${fellBack} estimated)`));
     } else {

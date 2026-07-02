@@ -8,7 +8,7 @@ const KEEP_JOURNAL_LINES = 600;
 /**
  * Keep journal.md from growing without bound: once it exceeds a threshold, move
  * the oldest entries into journal.archive.md and keep the recent tail. Returns
- * the number of lines archived (0 if no action needed). Non-destructive — the
+ * the number of lines archived (0 if no action needed). Non-destructive - the
  * archived lines are appended, never dropped.
  */
 export function consolidateJournal(projectRoot: string): number {

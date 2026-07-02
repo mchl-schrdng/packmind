@@ -21,7 +21,7 @@ export function lines(text: string): string[] {
 }
 
 const SECTION = /^##\s+(.+?)\s*$/;
-// `- `name` · ~123 tok[ · $0.0012] — description`
+// `- `name` · ~123 tok[ · $0.0012] - description`
 const ENTRY = /^-\s+`([^`]+)`\s+·\s+~(\d+)\s+tok(?:\s+·\s+\$([\d.]+))?(?:\s+—\s+(.*\S))?\s*$/;
 
 export function parseMap(text: string): Map<string, MapEntry[]> {

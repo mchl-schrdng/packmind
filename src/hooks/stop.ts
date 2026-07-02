@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // Latch reminders so each fires at most once per session — otherwise the
+  // Latch reminders so each fires at most once per session - otherwise the
   // still-true condition re-emits every turn and the Stop emission re-invokes
   // the agent in an infinite loop.
   const reminders = computeStopReminders(session);

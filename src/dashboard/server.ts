@@ -84,7 +84,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
   if (url.pathname === "/") {
     return send(res, 200, "text/html; charset=utf-8", html.replace("__TOKEN__", ctx.token));
   }
-  // The logo is public (no token) — favicon uses logo.svg, the header uses the
+  // The logo is public (no token) - favicon uses logo.svg, the header uses the
   // dark-mode variant (light strokes) so it reads on the dark UI without a badge.
   if (url.pathname === "/logo.svg") {
     return send(res, 200, "image/svg+xml", readTextOr(`${TEMPLATES_DIR}/logo.svg`));
@@ -121,7 +121,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
           const { config, errors } = applyConfigPatch(readJsonOr(b.config, {}), patch);
           if (errors.length) return json(res, 400, { errors });
           writeJson(b.config, config);
-          ctx.config = loadConfig(b.config); // refresh — the server reads this live
+          ctx.config = loadConfig(b.config); // refresh - the server reads this live
           return json(res, 200, { ok: true, config: ctx.config });
         }
         return json(res, 200, { config: loadConfig(b.config), editableKeys: ALLOWED_CONFIG_KEYS });
@@ -192,7 +192,7 @@ function listenOnFreePort(server: http.Server, start: number): Promise<number> {
           reject(err);
         }
       });
-      // SECURITY: bind to loopback only — never exposed to the network.
+      // SECURITY: bind to loopback only - never exposed to the network.
       server.listen(port, "127.0.0.1", () => resolve(port));
     };
     tryListen();
