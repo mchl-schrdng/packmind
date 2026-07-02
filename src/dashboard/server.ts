@@ -103,7 +103,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
         return json(res, 200, readJsonOr(brain(ctx.projectRoot).solutions, []));
       if (url.pathname === "/api/journal")
         return json(res, 200, { text: journalTail(readTextOr(brain(ctx.projectRoot).journal)) });
-      if (url.pathname === "/api/knowledge")
+      if (url.pathname === "/api/knowledge" && req.method !== "POST")
         return json(res, 200, { text: readTextOr(brain(ctx.projectRoot).knowledge) });
       if (url.pathname === "/api/recall") {
         const q = url.searchParams.get("q") ?? "";

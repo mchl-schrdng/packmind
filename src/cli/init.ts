@@ -9,11 +9,8 @@ import { registerHooks, registerMcp } from "../adapters/claude-code.js";
 import { ensureDir } from "../util/paths.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { registerProject } from "./registry.js";
+import { seedBrainFiles } from "./seed.js";
 
-const CREATE_IF_MISSING = [
-  "config.json", "knowledge.md", "journal.md", "map.md", "handoff.md",
-  "solutions.json", "usage.json", "identity.md", "policy.json",
-];
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
 const HOOK_SCRIPTS = [
   "runtime.js", "session-start.js", "prompt-submit.js", "pre-read.js",
@@ -22,14 +19,6 @@ const HOOK_SCRIPTS = [
 
 function copy(src: string, dest: string): void {
   if (fs.existsSync(src)) fs.writeFileSync(dest, fs.readFileSync(src));
-}
-
-function seed(name: string, dir: string, overwrite: boolean): void {
-  const dest = path.join(dir, name);
-  if (!overwrite && fs.existsSync(dest)) return;
-  let content = fs.readFileSync(path.join(TEMPLATES_DIR, name), "utf8");
-  if (name === "usage.json") content = content.replace('"createdAt": ""', `"createdAt": "${new Date().toISOString()}"`);
-  fs.writeFileSync(dest, content);
 }
 
 function wireClaudeMd(projectRoot: string, claudeMdRel: string): void {
@@ -59,12 +48,11 @@ export function runInit(): void {
   ensureDir(b.recallDir);
 
   const fresh = !fs.existsSync(b.config);
-  for (const f of CREATE_IF_MISSING) seed(f, b.dir, false);
-  for (const f of ALWAYS_OVERWRITE) seed(f, b.dir, true);
+  seedBrainFiles(b.dir);
+  for (const f of ALWAYS_OVERWRITE) copy(path.join(TEMPLATES_DIR, f), path.join(b.dir, f));
 
   for (const script of HOOK_SCRIPTS) copy(path.join(HOOKS_DIST_DIR, script), path.join(b.hooksDir, script));
   copy(path.join(TEMPLATES_DIR, "hooks-package.json"), path.join(b.hooksDir, "package.json"));
-  copy(path.join(TEMPLATES_DIR, "gitattributes"), path.join(b.dir, ".gitattributes"));
 
   const config = loadConfig(b.config);
   registerHooks(path.join(projectRoot, config.claude.settingsPath));

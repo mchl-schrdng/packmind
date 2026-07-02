@@ -7,6 +7,7 @@ import { brain } from "../state/files.js";
 import { registerHooks, registerMcp } from "../adapters/claude-code.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { pruneRegistry, registerProject, type RegistryEntry } from "./registry.js";
+import { seedBrainFiles } from "./seed.js";
 import { createSnapshot } from "../state/snapshot.js";
 
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
@@ -38,6 +39,10 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
   }
 
   for (const f of ALWAYS_OVERWRITE) copy(path.join(TEMPLATES_DIR, f), path.join(b.dir, f));
+
+  // Seed any brain files introduced since this install was created (e.g. a
+  // policy.json an older version never wrote), and refresh .gitattributes/.gitignore.
+  seedBrainFiles(b.dir);
 
   // config.json: deep-merge template defaults UNDER the user's existing config,
   // preserving any values they customized while adding new keys.
