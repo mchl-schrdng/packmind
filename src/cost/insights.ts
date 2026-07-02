@@ -5,6 +5,7 @@ import { inputCost } from "./pricing.js";
 import { parseMap } from "../state/formats.js";
 import { readTextOr } from "../util/fs-atomic.js";
 import { peekQueue } from "../recall/queue.js";
+import { compressStats, type CompressStats } from "../compress/store.js";
 import type { Config } from "../state/schema.js";
 
 export interface Flag {
@@ -26,6 +27,7 @@ export interface InsightsReport {
   estCostSaved: number;
   topFiles: Array<{ file: string; tokens: number; cost: number }>;
   flags: Flag[];
+  compress: CompressStats;
 }
 
 function sizeOf(p: string): number {
@@ -103,5 +105,6 @@ export function computeInsights(projectRoot: string, config: Config): InsightsRe
     estCostSaved,
     topFiles,
     flags,
+    compress: compressStats(projectRoot),
   };
 }

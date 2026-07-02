@@ -2,13 +2,13 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { brain } from "../state/files.js";
-import { updateJson, writeText } from "../util/fs-atomic.js";
+import { readJsonOr, updateJson, writeText } from "../util/fs-atomic.js";
 
 // Content-addressed store of large NON-source blobs Claude has shelved. The
 // original is kept verbatim on disk and returned by retrieve(); compress() hands
 // back a compact, reversible preview so the raw text can leave the context.
-const MAX_BLOBS = 50;
-const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
+export const MAX_BLOBS = 50;
+export const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
 const SMALL_BYTES = 4096;
 const HEAD_LINES = 12;
 const TAIL_LINES = 8;
@@ -111,4 +111,22 @@ export function retrieve(projectRoot: string, hash: string): string | null {
   } catch {
     return null;
   }
+}
+
+export interface CompressStats {
+  blobs: number;
+  bytes: number;
+  maxBlobs: number;
+  maxBytes: number;
+}
+
+/** Current size of the compress store, for insights and the dashboard. */
+export function compressStats(projectRoot: string): CompressStats {
+  const index = readJsonOr<BlobMeta[]>(brain(projectRoot).compressIndex, []);
+  return {
+    blobs: index.length,
+    bytes: index.reduce((sum, m) => sum + (m.bytes || 0), 0),
+    maxBlobs: MAX_BLOBS,
+    maxBytes: MAX_TOTAL_BYTES,
+  };
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
-import { store, retrieve, compact } from "../src/compress/store.js";
+import { store, retrieve, compact, compressStats } from "../src/compress/store.js";
 
 describe("compress store", () => {
   let root: string;
@@ -70,5 +70,15 @@ describe("compress store", () => {
     const original = lines.join("\n");
     expect(original.length).toBeGreaterThan(4096);
     expect(store(root, original).preview.length).toBeLessThanOrEqual(original.length);
+  });
+
+  it("reports store stats (count, bytes, caps)", () => {
+    expect(compressStats(root)).toEqual({ blobs: 0, bytes: 0, maxBlobs: 50, maxBytes: 5 * 1024 * 1024 });
+    store(root, "hello");
+    store(root, "a different blob");
+    const s = compressStats(root);
+    expect(s.blobs).toBe(2);
+    expect(s.bytes).toBeGreaterThan(0);
+    expect(s.maxBlobs).toBe(50);
   });
 });
