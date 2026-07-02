@@ -10,7 +10,7 @@ export async function runRecall(query: string): Promise<void> {
   if (hits.length === 0) {
     console.log(chalk.dim(
       indexSize(projectRoot, config) === 0
-        ? "Recall index isn't built yet — run `packmind index` to enable semantic search."
+        ? "Recall index isn't built yet - run `packmind index` to enable semantic search."
         : "No matches for that query.",
     ));
     return;

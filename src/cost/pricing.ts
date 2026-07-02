@@ -1,7 +1,7 @@
 /**
  * Per-model list prices in USD per million tokens.
  *
- * These are DEFAULTS and approximate — model pricing changes over time. Override
+ * These are DEFAULTS and approximate - model pricing changes over time. Override
  * any model's rate in `.packmind/config.json` under `cost.prices`, e.g.:
  *
  *   "cost": { "prices": { "claude-opus-4-8": { "inputPerMTok": 15, "outputPerMTok": 75 } } }

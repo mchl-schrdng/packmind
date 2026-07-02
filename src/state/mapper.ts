@@ -133,7 +133,7 @@ export function mapIsStale(projectRoot: string, config: Config): boolean {
     try {
       if (fs.statSync(abs).mtimeMs > mapMtime) return true; // changed since scan
     } catch {
-      /* unreadable — skip */
+      /* unreadable - skip */
     }
   }
 

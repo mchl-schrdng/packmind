@@ -2,7 +2,7 @@ import { deepMerge, type Config } from "../state/schema.js";
 
 /**
  * The subset of config.json the dashboard is allowed to edit, keyed by dotted
- * path with its expected JS type. Anything not listed here is rejected — the UI
+ * path with its expected JS type. Anything not listed here is rejected - the UI
  * never touches `cost.prices`, `claude.*`, `version`, or `map.excludeDirs`.
  */
 export type FieldType = "string" | "boolean" | "number" | "exact" | "stringArray" | "leanMode";

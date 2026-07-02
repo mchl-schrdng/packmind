@@ -15,7 +15,7 @@ export function runPolicyCheck(): void {
     const issues = validateRule(r);
     if (issues.length) {
       problems++;
-      console.log(`  ${chalk.red("✗")} ${r.id || "(no id)"} — ${issues.join("; ")}`);
+      console.log(`  ${chalk.red("✗")} ${r.id || "(no id)"} - ${issues.join("; ")}`);
     } else {
       console.log(`  ${chalk.green("✓")} ${r.id} (${r.severity})`);
     }

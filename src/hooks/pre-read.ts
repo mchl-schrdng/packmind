@@ -46,7 +46,7 @@ async function main(): Promise<void> {
   // Re-read warning only when the file is unchanged since the last read.
   if (prior && prior.count > 0 && cur > 0 && cur <= prior.mtime) {
     session.dedupedReads++;
-    notes.push(`Already read \`${rel}\` this session and it's unchanged (~${prior.tokens} tok) — re-reading is usually wasteful.`);
+    notes.push(`Already read \`${rel}\` this session and it's unchanged (~${prior.tokens} tok) - re-reading is usually wasteful.`);
   }
 
   // Map lookup with exact path comparison.
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     for (const e of entries) {
       const entryRel = (section === "./" ? "" : section) + e.file;
       if (samePath(root, path.resolve(root, entryRel), abs)) {
-        if (e.description) notes.push(`map.md: \`${rel}\` — ${e.description} (~${e.tokens} tok)`);
+        if (e.description) notes.push(`map.md: \`${rel}\` - ${e.description} (~${e.tokens} tok)`);
         described = true;
         break;
       }

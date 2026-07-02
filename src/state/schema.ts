@@ -3,9 +3,9 @@ import { readJsonOr } from "../util/fs-atomic.js";
 /**
  * PackMind configuration. The on-disk config.json is always DEEP-MERGED over
  * these defaults, which gives two guarantees:
- *   1. Forward compatibility — a config written by an older version never
+ *   1. Forward compatibility - a config written by an older version never
  *      crashes a newer accessor (missing keys fall back to defaults).
- *   2. Preservation — `packmind update` can introduce new keys without
+ *   2. Preservation - `packmind update` can introduce new keys without
  *      clobbering values the user customized (e.g. their chosen model).
  */
 export interface Config {

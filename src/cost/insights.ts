@@ -75,19 +75,19 @@ export function computeInsights(projectRoot: string, config: Config): InsightsRe
     flags.push({ level: "good", title: "Re-reads avoided", detail: `${t.dedupedReads} redundant reads skipped this project.` });
   }
   if (mapCoverage !== null && mapCoverage < 0.6 && t.reads >= 10) {
-    flags.push({ level: "warn", title: "Low map coverage", detail: `Only ${Math.round(mapCoverage * 100)}% of reads hit a map description — run \`packmind scan\`.` });
+    flags.push({ level: "warn", title: "Low map coverage", detail: `Only ${Math.round(mapCoverage * 100)}% of reads hit a map description - run \`packmind scan\`.` });
   }
   const pending = peekQueue(projectRoot).length;
   if (pending > 0) {
-    flags.push({ level: "warn", title: "Recall index stale", detail: `${pending} file(s) changed since the last index — run \`packmind index\` or \`packmind maintain\`.` });
+    flags.push({ level: "warn", title: "Recall index stale", detail: `${pending} file(s) changed since the last index - run \`packmind index\` or \`packmind maintain\`.` });
   }
   const journalKB = Math.round(sizeOf(b.journal) / 1024);
   if (journalKB > 60) {
-    flags.push({ level: "warn", title: "Journal is large", detail: `journal.md is ${journalKB}KB — run \`packmind maintain\` to archive old entries.` });
+    flags.push({ level: "warn", title: "Journal is large", detail: `journal.md is ${journalKB}KB - run \`packmind maintain\` to archive old entries.` });
   }
   const ka = ageDays(b.knowledge);
   if (ka !== null && ka > 21) {
-    flags.push({ level: "warn", title: "Knowledge is stale", detail: `knowledge.md hasn't changed in ${Math.round(ka)} days — capture recent decisions with the \`remember\` tool.` });
+    flags.push({ level: "warn", title: "Knowledge is stale", detail: `knowledge.md hasn't changed in ${Math.round(ka)} days - capture recent decisions with the \`remember\` tool.` });
   }
 
   return {

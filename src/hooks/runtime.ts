@@ -471,13 +471,13 @@ export function writeSession(s: Session): void {
 export function computeStopReminders(session: Session): string[] {
   const reminders: string[] = [];
   if (session.writes.length >= 3 && !session.notifiedWrites) {
-    reminders.push("Several files changed — record durable lessons/decisions with the `remember` tool and any fixes with `record_solution`.");
+    reminders.push("Several files changed - record durable lessons/decisions with the `remember` tool and any fixes with `record_solution`.");
     session.notifiedWrites = true;
   }
   const already = session.notifiedEdits ?? [];
   const heavy = Object.entries(session.editCounts).filter(([f, n]) => n >= 4 && !already.includes(f));
   if (heavy.length) {
-    reminders.push(`Repeatedly edited ${heavy.map(([f]) => `\`${f}\``).join(", ")} — capture the root cause so it isn't rediscovered.`);
+    reminders.push(`Repeatedly edited ${heavy.map(([f]) => `\`${f}\``).join(", ")} - capture the root cause so it isn't rediscovered.`);
     session.notifiedEdits = [...already, ...heavy.map(([f]) => f)];
   }
   return reminders;

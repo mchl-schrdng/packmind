@@ -38,7 +38,7 @@ export function createProgram(): Command {
 
   program
     .command("maintain")
-    .description("One-shot upkeep (scan, reindex, archive journal, prune backups) — cron-friendly")
+    .description("One-shot upkeep (scan, reindex, archive journal, prune backups) - cron-friendly")
     .option("--quiet", "Suppress output (for unattended/cron runs)")
     .option("--keep-backups <n>", "How many backups to keep (default 10)")
     .action((o) => runMaintain(o));
