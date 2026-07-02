@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newSession, leanNudge } from "../src/hooks/runtime.js";
+import { newSession, leanNudge, compressNudge } from "../src/hooks/runtime.js";
 import { DEFAULT_CONFIG, deepMerge, type Config } from "../src/state/schema.js";
 
 /**
@@ -39,5 +39,21 @@ describe("guard.lean config", () => {
     const merged = deepMerge<Config>(DEFAULT_CONFIG, legacy);
     expect(merged.guard.lean.mode).toBe("lite"); // backfilled from defaults
     expect(merged.guard.blockSecrets).toBe(true); // user value preserved
+  });
+});
+
+describe("compressNudge", () => {
+  const big = 20 * 1024;
+
+  it("suggests compress once for a large non-source file, then latches", () => {
+    const s = newSession("s");
+    expect(compressNudge("logs/app.log", big, s)).toMatch(/compress\(\)/);
+    expect(s.notifiedCompress).toBe(true);
+    expect(compressNudge("data/other.json", big, s)).toBeNull(); // latched for the session
+  });
+
+  it("is silent for source files and for small files", () => {
+    expect(compressNudge("src/index.ts", big, newSession("s"))).toBeNull(); // source, never
+    expect(compressNudge("logs/app.log", 1024, newSession("s"))).toBeNull(); // below the size floor
   });
 });

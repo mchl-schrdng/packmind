@@ -13,12 +13,20 @@ import {
   samePath,
   parseInput,
   readStdin,
+  compressNudge,
   emitContext,
 } from "./runtime.js";
 
 function mtime(p: string): number {
   try {
     return fs.statSync(p).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+function size(p: string): number {
+  try {
+    return fs.statSync(p).size;
   } catch {
     return 0;
   }
@@ -64,6 +72,10 @@ async function main(): Promise<void> {
     if (described) break;
   }
   described ? session.mapHits++ : session.mapMisses++;
+
+  // Suggest compress() once per session before reading a large non-source file.
+  const cnudge = compressNudge(rel, size(abs), session);
+  if (cnudge) notes.push(cnudge);
 
   session.reads[rel] = {
     count: (prior?.count ?? 0) + 1,

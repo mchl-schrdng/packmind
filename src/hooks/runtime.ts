@@ -436,6 +436,8 @@ export interface Session {
   notifiedEdits?: string[];
   /** Lean-mode nudge latch (lite mode fires the ladder reminder once/session). */
   notifiedLean?: boolean;
+  /** Compress-suggestion latch (fires once/session on a large non-source read). */
+  notifiedCompress?: boolean;
 }
 export function newSession(id: string): Session {
   return {
@@ -497,6 +499,26 @@ export function leanNudge(mode: string, session: Session): string | null {
     session.notifiedLean = true;
   }
   return "Lean check: reuse what exists (this codebase, stdlib, installed deps) before adding new code. Climb the ladder in PACKMIND.md, and leave a `packmind:` note for any deferred shortcut.";
+}
+
+// Large NON-source data formats worth shelving; source code is never suggested
+// for compression because Claude needs it exact.
+const COMPRESS_DATA_EXT = new Set([
+  ".log", ".json", ".ndjson", ".jsonl", ".csv", ".tsv", ".txt", ".out", ".xml", ".yaml", ".yml",
+]);
+const COMPRESS_MIN_BYTES = 16 * 1024;
+
+/**
+ * Suggest compress() once per session when Claude is about to read a large
+ * non-source data file. Silent for source, small files, or after it has fired.
+ * Hook-only (no canonical twin); the caller persists the session when it fires.
+ */
+export function compressNudge(rel: string, bytes: number, session: Session): string | null {
+  if (session.notifiedCompress) return null;
+  if (bytes < COMPRESS_MIN_BYTES) return null;
+  if (!COMPRESS_DATA_EXT.has(path.extname(rel).toLowerCase())) return null;
+  session.notifiedCompress = true;
+  return `\`${rel}\` is a large ${path.extname(rel)} file (~${Math.round(bytes / 1024)} KB). If you don't need it verbatim, read only the part you need, or read it then use compress() to keep the context lean.`;
 }
 
 // --- recall queue (zero-dep enqueue) ----------------------------------------
