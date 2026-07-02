@@ -19,6 +19,8 @@ export function brain(projectRoot: string) {
     recallDir: stateFile(projectRoot, "recall"),
     queue: stateFile(projectRoot, "recall", "queue.json"),
     vectors: stateFile(projectRoot, "recall", "vectors.json"),
+    compressDir: stateFile(projectRoot, "compress"),
+    compressIndex: stateFile(projectRoot, "compress", "index.json"),
     hooksDir: stateFile(projectRoot, "hooks"),
   };
 }

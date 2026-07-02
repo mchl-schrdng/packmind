@@ -5,6 +5,7 @@ import { readJsonOr, writeJson, appendLine, readTextOr, writeText } from "../uti
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
 import { gitDiff, reviewPayload } from "../state/review.js";
+import { store as storeBlob, retrieve as retrieveBlob, type BlobMeta } from "../compress/store.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { recall as recallSearch, indexSize } from "../recall/indexer.js";
 import { computeInsights } from "../cost/insights.js";
@@ -124,6 +125,11 @@ export function toolInsights(ctx: ToolContext): string {
     for (const f of r.topFiles) lines.push(`  ${f.file} — ~${f.tokens} tok ($${f.cost.toFixed(4)})`);
   }
   for (const f of r.flags) lines.push(`[${f.level}] ${f.title}: ${f.detail}`);
+  const blobs = readJsonOr<BlobMeta[]>(brain(ctx.projectRoot).compressIndex, []);
+  if (blobs.length) {
+    const kb = Math.round(blobs.reduce((s, m) => s + (m.bytes || 0), 0) / 1024);
+    lines.push(`Compression store: ${blobs.length} blob(s), ~${kb} KB shelved (retrieve to restore).`);
+  }
   return lines.join("\n");
 }
 
@@ -161,6 +167,16 @@ export function toolDebt(ctx: ToolContext): string {
 
 export function toolReview(ctx: ToolContext, base?: string): string {
   return reviewPayload(gitDiff(ctx.projectRoot, base));
+}
+
+export function toolCompress(ctx: ToolContext, content: string, kind?: string): string {
+  if (!content) return "Nothing to compress (empty content).";
+  const { hash, bytes, preview } = storeBlob(ctx.projectRoot, content, kind || "text");
+  return `Stored ${bytes} bytes as ${hash}. Retrieve the full original with retrieve("${hash}").\n\n${preview}`;
+}
+
+export function toolRetrieve(ctx: ToolContext, hash: string): string {
+  return retrieveBlob(ctx.projectRoot, hash) ?? `No stored content for "${hash}" (it may have been pruned).`;
 }
 
 /** True if the project has been initialized. */
