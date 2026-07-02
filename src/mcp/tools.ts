@@ -5,7 +5,7 @@ import { readJsonOr, writeJson, readTextOr, writeText } from "../util/fs-atomic.
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
 import { gitDiff, reviewPayload } from "../state/review.js";
-import { store as storeBlob, retrieve as retrieveBlob, type BlobMeta } from "../compress/store.js";
+import { store as storeBlob, retrieve as retrieveBlob } from "../compress/store.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { recall as recallSearch, indexSize } from "../recall/indexer.js";
 import { computeInsights } from "../cost/insights.js";
@@ -127,10 +127,9 @@ export function toolInsights(ctx: ToolContext): string {
     for (const f of r.topFiles) lines.push(`  ${f.file} - ~${f.tokens} tok ($${f.cost.toFixed(4)})`);
   }
   for (const f of r.flags) lines.push(`[${f.level}] ${f.title}: ${f.detail}`);
-  const blobs = readJsonOr<BlobMeta[]>(brain(ctx.projectRoot).compressIndex, []);
-  if (blobs.length) {
-    const kb = Math.round(blobs.reduce((s, m) => s + (m.bytes || 0), 0) / 1024);
-    lines.push(`Compression store: ${blobs.length} blob(s), ~${kb} KB shelved (retrieve to restore).`);
+  if (r.compress.blobs) {
+    const kb = Math.round(r.compress.bytes / 1024);
+    lines.push(`Compression store: ${r.compress.blobs} blob(s), ~${kb} KB shelved (retrieve to restore).`);
   }
   return lines.join("\n");
 }

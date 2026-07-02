@@ -437,6 +437,8 @@ async function renderOverview() {
 async function renderInsights() {
   const [r, map] = await Promise.all([api("/api/insights"), api("/api/map")]);
   const cov = r.mapCoverage === null ? "—" : Math.round(r.mapCoverage * 100) + "%";
+  const c = r.compress || { blobs: 0, bytes: 0, maxBlobs: 50, maxBytes: 5242880 };
+  const capPct = c.blobs ? Math.round(100 * Math.max(c.blobs / c.maxBlobs, c.bytes / c.maxBytes)) : 0;
   // Aggregate token weight by top-level directory (client-side, from the map).
   const byDir = {};
   for (const e of map) {
@@ -459,6 +461,8 @@ async function renderInsights() {
         <div class="sub">of reads hit a description</div></div>
       <div class="card"><div class="label">Total cost</div><div class="value">${money(r.totalCost)}</div>
         <div class="sub">${(r.inputTokens||0).toLocaleString()} in / ${(r.outputTokens||0).toLocaleString()} out</div></div>
+      <div class="card"><div class="label">Compression store</div><div class="value">${c.blobs}</div>
+        <div class="sub">${Math.round(c.bytes/1024)} KB shelved${c.blobs ? ` · ${capPct}% of cap` : ""}</div></div>
     </div>
     <div class="grid2">
       <div class="panel"><div class="head">Map coverage</div>
