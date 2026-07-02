@@ -39,11 +39,13 @@ describe("harvestDebt", () => {
     expect(items.some((i) => i.file === "d.md")).toBe(false);
   });
 
-  it("ignores a marker that is not at the start of a line (e.g. inside a string)", () => {
+  it("harvests a trailing marker on a line of code, not just full-line comments", () => {
     const d = fs.mkdtempSync(path.join(os.tmpdir(), "pm-debt2-"));
-    fs.writeFileSync(path.join(d, "e.ts"), 'const s = "x // packmind: not a real marker";\n');
+    fs.writeFileSync(path.join(d, "e.ts"), "doExpensiveThing(); // packmind: O(n^2), index later\n");
     try {
-      expect(harvestDebt(d, DEFAULT_CONFIG)).toHaveLength(0);
+      const items = harvestDebt(d, DEFAULT_CONFIG);
+      expect(items).toHaveLength(1);
+      expect(items[0].note).toMatch(/O\(n\^2\)/);
     } finally {
       fs.rmSync(d, { recursive: true, force: true });
     }
