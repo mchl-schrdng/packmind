@@ -66,4 +66,23 @@ describe("hook runtime parity", () => {
     expect(a.block).toEqual(b.block);
     expect(a.block).toBe(true); // the path glob must actually match
   });
+
+  it("looksSecret matches for a glob containing a space (space stays literal)", () => {
+    // The old runtime sentinel turned the space into `.*`, diverging from canonical.
+    const globs = ["my dir/**"];
+    for (const rel of ["my dir/app.json", "myXdir/app.json"]) {
+      expect(rt.looksSecret(rel, globs, rel)).toEqual(secrets.looksSecret(rel, globs, rel));
+    }
+    expect(rt.looksSecret("my dir/app.json", globs, "my dir/app.json")).toBe(true);
+    expect(rt.looksSecret("myXdir/app.json", globs, "myXdir/app.json")).toBe(false);
+  });
+
+  it("evaluateWrite matches for a pathGlob rule containing a space", () => {
+    const rule = { id: "r", message: "m", severity: "warn" as const, pathGlob: "my dir/**" };
+    const input = { relPath: "my dir/x.ts", content: "", blockSecrets: false, extraSecretGlobs: [] };
+    const a = rt.evaluateWrite([rule], input);
+    const b = policy.evaluateWrite({ version: 1, rules: [rule] }, input);
+    expect(a.findings.length).toEqual(b.findings.length);
+    expect(a.findings.length).toBe(1); // the space glob matches in both
+  });
 });

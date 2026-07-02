@@ -217,10 +217,7 @@ function toRe(glob: string): RegExp {
 function pathRe(glob: string): RegExp {
   const body = glob
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replace(/\*\*/g, " ")
-    .replace(/\*/g, "[^/]*")
-    .replace(/ /g, ".*")
-    .replace(/\?/g, ".");
+    .replace(/\*\*|\*|\?/g, (m) => (m === "**" ? ".*" : m === "*" ? "[^/]*" : "."));
   return new RegExp(`^${body}$`, "i");
 }
 const SECRET_RES = SECRET_GLOBS.map(toRe);
@@ -290,11 +287,8 @@ export interface Finding {
 }
 function pathGlobRe(glob: string): RegExp {
   const body = glob
-    .replace(/[.+^${}()|[\]]/g, "\\$&")
-    .replace(/\*\*/g, " ")
-    .replace(/\*/g, "[^/]*")
-    .replace(/ /g, ".*")
-    .replace(/\?/g, ".");
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/\*\*|\*|\?/g, (m) => (m === "**" ? ".*" : m === "*" ? "[^/]*" : "."));
   return new RegExp(`^${body}$`, "i");
 }
 export function evaluateWrite(
