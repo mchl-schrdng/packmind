@@ -4,6 +4,7 @@
 # left tracked so project memory is shared.
 usage.json
 handoff.md
+guard.effective.json
 recall/
 state/
 compress/

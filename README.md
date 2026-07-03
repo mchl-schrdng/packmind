@@ -74,6 +74,7 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `recall(query)` | Semantic search across knowledge, journal, solutions, and source |
 | `remember(note, kind)` | Save a preference, decision, never-do rule, or note |
 | `record_solution(error, cause, fix, tags)` | Log a fix so it's never rediscovered |
+| `record_evidence(check, detail?)` | Mark a practice check satisfied this session so its nudge stays quiet |
 | `project_map(filter?)` | List files with descriptions and token estimates |
 | `usage_report()` | Token usage and dollar cost for the project |
 | `insights()` | Savings, map coverage, heaviest files, and upkeep notes |
@@ -100,6 +101,9 @@ packmind maintain         One-shot upkeep: scan + reindex + archive + prune (cro
 packmind backup [--list]  Snapshot .packmind/ to ~/.packmind/backups
 packmind restore [stamp]  Restore .packmind/ from a backup (omit to list)
 packmind policy check     Lint guardrail rules
+packmind practice list    List bundled practice packs and which are active
+packmind practice add|remove <pack>   Activate/deactivate a practice pack
+packmind practice explain <path>      Show which rules/checks apply to a path
 packmind doctor           Diagnose projects, hooks, and MCP registration
 packmind update           Update registered projects (snapshots first, preserves config.json)
 packmind mcp              Run the MCP server (used by Claude Code)
@@ -113,8 +117,9 @@ packmind mcp              Run the MCP server (used by Claude Code)
 | `knowledge.md` | Preferences, decisions, never-do list | yes |
 | `identity.md` | Persistent project identity notes | yes |
 | `config.json` | Configuration | yes |
-| `policy.json` | Guardrail rules | yes |
+| `policy.json` | Guardrail rules (your local overrides) | yes |
 | `PACKMIND.md` | Protocol Claude follows | yes |
+| `guard.effective.json` | Resolved guard set (default + packs + policy.json) | no (derived) |
 | `journal.md` | Action log + session summaries | optional |
 | `solutions.json` | Recorded fixes | optional |
 | `usage.json` | Token &amp; cost ledger | no (per-dev) |
