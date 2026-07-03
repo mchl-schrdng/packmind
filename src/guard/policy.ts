@@ -72,7 +72,8 @@ export interface GuardInput {
   extraSecretGlobs: string[];
 }
 
-function globToRe(glob: string): RegExp {
+/** Compile a path glob (`**`, `*`, `?`) to an anchored, case-insensitive regex. */
+export function globToRe(glob: string): RegExp {
   const body = glob
     .replace(/[.+^${}()|[\]\\]/g, "\\$&")
     .replace(/\*\*|\*|\?/g, (m) => (m === "**" ? ".*" : m === "*" ? "[^/]*" : "."));

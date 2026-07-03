@@ -109,6 +109,29 @@ export function readJsonOr<T>(target: string, fallback: T): T {
   }
 }
 
+/**
+ * Like readJsonOr, but only the ABSENT case falls back. A file that exists but
+ * fails to parse throws, so callers that read-modify-write a user-owned file
+ * (e.g. .claude/settings.json, .mcp.json) never silently discard its contents
+ * over a mere syntax error (trailing comma, BOM, JSONC comment).
+ */
+export function readJsonStrict<T>(target: string, fallback: T): T {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(target, "utf8");
+  } catch {
+    return fallback; // absent or unreadable: start fresh
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    throw new Error(
+      `packmind: ${target} exists but is not valid JSON (${(err as Error).message}). ` +
+        `Refusing to overwrite it - fix or remove the file, then re-run.`,
+    );
+  }
+}
+
 export function writeJson(target: string, value: unknown): void {
   withLock(target, () => writeAtomic(target, JSON.stringify(value, null, 2) + "\n"));
 }

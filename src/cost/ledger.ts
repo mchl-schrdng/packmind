@@ -1,4 +1,4 @@
-import { readJsonOr, writeJson } from "../util/fs-atomic.js";
+import { readJsonOr, updateJson } from "../util/fs-atomic.js";
 import { brain } from "../state/files.js";
 import type { SessionState } from "../state/files.js";
 
@@ -55,35 +55,57 @@ export function totalCost(l: UsageLedger): number {
   return l.totals.inputCost + l.totals.outputCost;
 }
 
-/** Fold a finished session into the lifetime ledger. */
-export function commitSession(projectRoot: string, model: string, s: SessionState): void {
-  const ledger = readLedger(projectRoot, model);
-  // Idempotency: committing the same session twice would double-count every
-  // total, so skip if this session id was already folded in.
-  if (ledger.sessions.some((x) => x.id === s.id)) return;
-  const reads = Object.keys(s.reads).length;
-  ledger.sessions.push({
+/**
+ * Fold a session's CUMULATIVE counters into the lifetime ledger, upserting by
+ * session id. The Stop hook fires once per TURN carrying cumulative session
+ * totals, so a plain push+add would count each session quadratically; instead we
+ * replace the existing row for this id and adjust totals by the delta. Naturally
+ * idempotent (re-folding an identical session nets zero). `totals.sessions`
+ * counts distinct ids. Mirrored by foldSessionIntoLedger in hooks/runtime.ts;
+ * the two are pinned together by runtime-parity.test.ts.
+ */
+export function foldSessionIntoLedger(ledger: UsageLedger, s: SessionState, endedAt: string): void {
+  ledger.sessions = ledger.sessions ?? [];
+  const row = {
     id: s.id,
     started: s.started,
-    ended: new Date().toISOString(),
+    ended: endedAt,
     inputTokens: s.inputTokens,
     outputTokens: s.outputTokens,
     inputCost: s.inputCost,
     outputCost: s.outputCost,
-    reads,
+    reads: Object.keys(s.reads).length,
     writes: s.writes.length,
     dedupedReads: s.dedupedReads,
     mapHits: s.mapHits,
-  });
+  };
   const t = ledger.totals;
-  t.inputTokens += s.inputTokens;
-  t.outputTokens += s.outputTokens;
-  t.inputCost += s.inputCost;
-  t.outputCost += s.outputCost;
-  t.reads += reads;
-  t.writes += s.writes.length;
-  t.sessions += 1;
-  t.dedupedReads += s.dedupedReads;
-  t.mapHits += s.mapHits;
-  writeJson(brain(projectRoot).usage, ledger);
+  const apply = (r: typeof row, k: number): void => {
+    t.inputTokens += k * r.inputTokens;
+    t.outputTokens += k * r.outputTokens;
+    t.inputCost += k * r.inputCost;
+    t.outputCost += k * r.outputCost;
+    t.reads += k * r.reads;
+    t.writes += k * r.writes;
+    t.dedupedReads += k * (r.dedupedReads ?? 0);
+    t.mapHits += k * (r.mapHits ?? 0);
+  };
+  const i = ledger.sessions.findIndex((x) => x.id === s.id);
+  if (i === -1) {
+    ledger.sessions.push(row);
+    t.sessions += 1;
+    apply(row, 1);
+  } else {
+    apply(ledger.sessions[i] as typeof row, -1);
+    ledger.sessions[i] = row;
+    apply(row, 1);
+  }
+}
+
+/** Fold a session into the lifetime ledger and persist (upsert by id). */
+export function commitSession(projectRoot: string, model: string, s: SessionState): void {
+  updateJson<UsageLedger>(brain(projectRoot).usage, emptyLedger(model), (ledger) => {
+    foldSessionIntoLedger(ledger, s, new Date().toISOString());
+    return ledger;
+  });
 }

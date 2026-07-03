@@ -231,7 +231,10 @@
 </div>
 <script>
 const TOKEN = "__TOKEN__";
-const api = (p) => fetch(p + (p.includes("?") ? "&" : "?") + "token=" + TOKEN).then(r => r.json());
+const api = (p) => fetch(p + (p.includes("?") ? "&" : "?") + "token=" + TOKEN).then(r => {
+  if (!r.ok) throw new Error("Request failed (" + r.status + "). The dashboard may have restarted - reopen it from the terminal to get a fresh link.");
+  return r.json();
+});
 const $ = (id) => document.getElementById(id);
 // Escapes for both text and attribute contexts (quotes included), so a folder
 // name containing " or ' can't break out of a title="..." attribute.
@@ -373,7 +376,9 @@ function go(id) {
   $("title").textContent = sec.title;
   $("desc").textContent = sec.desc;
   $("view").innerHTML = '<div class="empty">Loading…</div>';
-  sec.render();
+  Promise.resolve(sec.render()).catch(err => {
+    $("view").innerHTML = '<div class="empty">' + esc((err && err.message) || String(err)) + '</div>';
+  });
   if (timer) clearInterval(timer);
   // Live-refresh the lightweight, frequently-changing sections.
   if (id === "overview" || id === "insights") timer = setInterval(sec.render, 5000);

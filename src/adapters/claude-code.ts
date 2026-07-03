@@ -1,4 +1,5 @@
-import { readJsonOr, writeJson } from "../util/fs-atomic.js";
+import * as fs from "node:fs";
+import { readJsonStrict, writeJson } from "../util/fs-atomic.js";
 import { onWindows } from "../util/platform.js";
 
 /**
@@ -60,8 +61,22 @@ function stripManaged(existing: HookMap): HookMap {
   return out;
 }
 
+/** Copy a user-owned file to a `.packmind-bak` sibling before we first rewrite it. */
+function backupOnce(target: string): void {
+  const bak = `${target}.packmind-bak`;
+  try {
+    if (fs.existsSync(target) && !fs.existsSync(bak)) fs.copyFileSync(target, bak);
+  } catch {
+    /* best effort */
+  }
+}
+
 export function registerHooks(settingsPath: string): void {
-  const settings = readJsonOr<Record<string, unknown>>(settingsPath, {});
+  // Strict read: if settings.json exists but is malformed, throw rather than
+  // overwrite it with only our hooks (which would wipe the user's permissions,
+  // env, and any hooks they authored themselves).
+  const settings = readJsonStrict<Record<string, unknown>>(settingsPath, {});
+  backupOnce(settingsPath);
   const merged = stripManaged((settings.hooks as HookMap) ?? {});
   for (const [event, groups] of Object.entries(buildHookMap())) {
     merged[event] = [...(merged[event] ?? []), ...groups];
@@ -71,14 +86,15 @@ export function registerHooks(settingsPath: string): void {
 }
 
 export function unregisterHooks(settingsPath: string): void {
-  const settings = readJsonOr<Record<string, unknown>>(settingsPath, {});
+  const settings = readJsonStrict<Record<string, unknown>>(settingsPath, {});
   settings.hooks = stripManaged((settings.hooks as HookMap) ?? {});
   writeJson(settingsPath, settings);
 }
 
 /** Register the PackMind MCP server in a project's .mcp.json (preserving others). */
 export function registerMcp(mcpJsonPath: string): void {
-  const config = readJsonOr<{ mcpServers?: Record<string, unknown> }>(mcpJsonPath, {});
+  const config = readJsonStrict<{ mcpServers?: Record<string, unknown> }>(mcpJsonPath, {});
+  backupOnce(mcpJsonPath);
   config.mcpServers = config.mcpServers ?? {};
   config.mcpServers.packmind = { command: "packmind", args: ["mcp"] };
   writeJson(mcpJsonPath, config);

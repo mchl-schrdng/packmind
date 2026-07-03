@@ -16,10 +16,10 @@ export interface Rate {
 export type PriceMap = Record<string, Rate>;
 
 export const PRICES: PriceMap = {
-  "claude-opus-4-8": { inputPerMTok: 15, outputPerMTok: 75 },
+  "claude-opus-4-8": { inputPerMTok: 5, outputPerMTok: 25 },
   "claude-sonnet-4-6": { inputPerMTok: 3, outputPerMTok: 15 },
   "claude-haiku-4-5": { inputPerMTok: 1, outputPerMTok: 5 },
-  "claude-fable-5": { inputPerMTok: 5, outputPerMTok: 25 },
+  "claude-fable-5": { inputPerMTok: 10, outputPerMTok: 50 },
 };
 
 function normalizeModel(model: string): string {

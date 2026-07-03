@@ -4,6 +4,8 @@ import * as est from "../src/cost/estimator.js";
 import * as secrets from "../src/guard/secrets.js";
 import * as guard from "../src/guard/path-guard.js";
 import * as policy from "../src/guard/policy.js";
+import * as pricing from "../src/cost/pricing.js";
+import * as ledger from "../src/cost/ledger.js";
 import * as rt from "../src/hooks/runtime.js";
 
 /**
@@ -84,5 +86,43 @@ describe("hook runtime parity", () => {
     const b = policy.evaluateWrite({ version: 1, rules: [rule] }, input);
     expect(a.findings.length).toEqual(b.findings.length);
     expect(a.findings.length).toBe(1); // the space glob matches in both
+  });
+
+  it("pricing (inputCost/outputCost) matches, including the unknown-model fallback and overrides", () => {
+    const models = ["claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "claude-fable-5", "totally-unknown"];
+    const ov = { "claude-opus-4-8": { inputPerMTok: 99, outputPerMTok: 200 } };
+    for (const m of models) {
+      expect(rt.inputCost(m, 1_000_000)).toBeCloseTo(pricing.inputCost(m, 1_000_000), 9);
+      expect(rt.outputCost(m, 1_000_000)).toBeCloseTo(pricing.outputCost(m, 1_000_000), 9);
+      expect(rt.inputCost(m, 1_000_000, ov)).toBeCloseTo(pricing.inputCost(m, 1_000_000, ov), 9);
+    }
+  });
+
+  it("foldSessionIntoLedger matches canonical commitSession over 3 cumulative turns", () => {
+    // Simulate a session whose cumulative totals grow each turn, folding both the
+    // runtime mirror and the canonical fold and asserting identical ledgers.
+    const emptyLedger = () => ({
+      version: 1, model: "m", createdAt: "t",
+      totals: { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, reads: 0, writes: 0, sessions: 0, dedupedReads: 0, mapHits: 0 },
+      sessions: [] as any[],
+    });
+    const rtLedger = emptyLedger();
+    const canonLedger = emptyLedger();
+    for (let turn = 1; turn <= 3; turn++) {
+      const s = {
+        id: "s1", started: "t0",
+        reads: { "a.ts": {} as any, "b.ts": {} as any },
+        writes: Array.from({ length: turn }, (_, i) => ({ file: `f${i}.ts`, action: "Write", tokens: 1, at: "t" })),
+        editCounts: {}, inputTokens: 100 * turn, outputTokens: 10 * turn,
+        inputCost: 0.1 * turn, outputCost: 0.05 * turn, mapHits: turn, mapMisses: 0, dedupedReads: turn,
+      };
+      rt.foldSessionIntoLedger(rtLedger as any, s as any, "end");
+      ledger.foldSessionIntoLedger(canonLedger as any, s as any, "end");
+    }
+    expect(JSON.stringify(rtLedger)).toEqual(JSON.stringify(canonLedger));
+    // And the fold is correct: totals reflect the FINAL cumulative turn, once.
+    expect(rtLedger.totals.inputTokens).toBe(300);
+    expect(rtLedger.totals.sessions).toBe(1);
+    expect(rtLedger.sessions.length).toBe(1);
   });
 });

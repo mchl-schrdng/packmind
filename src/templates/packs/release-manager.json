@@ -1,0 +1,19 @@
+{
+  "name": "release-manager",
+  "version": 1,
+  "checks": [
+    {
+      "id": "version-without-changelog",
+      "message": "package.json changed but CHANGELOG.md was not updated this session. Update the changelog, or record_evidence({check:\"changelog-updated\", detail:\"not a release\"}).",
+      "changedGlobs": ["package.json"],
+      "missingChangedGlobs": ["CHANGELOG.md", "CHANGELOG.markdown", "CHANGELOG"],
+      "needsEvidence": "changelog-updated"
+    },
+    {
+      "id": "release-checklist",
+      "message": "The release workflow changed. Verify: tests green, version bump, changelog, publish provenance, and dependency audit. Then record_evidence({check:\"release-checked\"}).",
+      "changedGlobs": [".github/workflows/release.*"],
+      "needsEvidence": "release-checked"
+    }
+  ]
+}

@@ -30,7 +30,7 @@
     "extraSecretGlobs": []
   },
   "cost": {
-    "exact": "auto",
+    "exact": "never",
     "prices": {}
   },
   "recall": {
@@ -41,7 +41,8 @@
   },
   "guard": {
     "blockSecrets": false,
-    "lean": { "mode": "lite" }
+    "lean": { "mode": "lite" },
+    "practices": []
   },
   "claude": {
     "settingsPath": ".claude/settings.json",

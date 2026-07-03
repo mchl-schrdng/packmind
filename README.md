@@ -36,13 +36,18 @@ exposes the project's memory as tools Claude can query directly.
 
 - **Project map** - every file gets a one-line description, a token estimate, and
   an estimated read cost, so Claude reads `map.md` instead of opening files blind.
-- **Real token &amp; cost accounting** - fast local estimates always, reconciled to
-  exact counts via Anthropic's count-tokens API when a key is present, priced per
-  model into a running **dollar total**.
+- **Real token &amp; cost accounting** - fast local estimates always, priced per
+  model into a running **dollar total**. Exact reconciliation via Anthropic's
+  count-tokens API is **opt-in** (`packmind scan --exact`), so nothing leaves your
+  machine by default.
 - **Local semantic recall** - an on-device embedding index (nothing leaves your
   machine) lets Claude `recall(...)` past decisions, solutions, and code by meaning.
 - **Active guardrails** - a policy engine warns (or hard-blocks, opt-in) before a
   write touches a secret file or violates a project rule.
+- **Practice packs** - installable sets of engineering reflexes (tests, CI, release
+  hygiene, security) that nudge at the right moment. Session-level checks like
+  "`src/**` changed but no test written" can be satisfied with the `record_evidence`
+  tool so they stay quiet once you've done the thing. Manage with `packmind practice`.
 - **Lean mode**: a reuse-first decision ladder that nudges Claude to build less
   (`off` / `lite` / `full`), with a `packmind:` shortcut convention you harvest via `debt`.
 - **Reversible compression** - shelve a large non-source output (log, JSON, command dump)
@@ -136,14 +141,17 @@ No persistent process, no open ports, no state to leak.
 update` and stays forward-compatible. Notable keys:
 
 - `model` - drives cost pricing (`claude-opus-4-8` by default).
-- `cost.exact` - when `scan` reconciles to exact counts: `auto` (exact when
-  `ANTHROPIC_API_KEY` is set) | `never` | `always`. You can always force it per-run
-  with `packmind scan --exact`. Hooks always use the fast local estimate.
+- `cost.exact` - when `scan` reconciles to exact counts: `never` (default, no
+  network) | `auto` (exact when `ANTHROPIC_API_KEY` is set) | `always`. You can
+  always force it per-run with `packmind scan --exact`. Hooks always use the fast
+  local estimate.
 - `cost.prices` - override the built-in (approximate) per-model rates, e.g.
-  `{ "claude-opus-4-8": { "inputPerMTok": 15, "outputPerMTok": 75 } }`. The
+  `{ "claude-opus-4-8": { "inputPerMTok": 5, "outputPerMTok": 25 } }`. The
   defaults are best-effort; set this to your account's actual pricing.
 - `recall.enabled` / `recall.embedModel` - local embeddings; fully offline.
 - `guard.blockSecrets` - set `true` to hard-block writes to secret files.
+- `guard.practices` - active practice packs (e.g. `quality-core`,
+  `release-manager`), managed with `packmind practice add|remove|list|explain`.
 - `guard.lean.mode` sets the reuse-first nudge before writes: `off` | `lite` | `full` (default `lite`).
 - `map.respectGitignore`, `map.extraSecretGlobs` - control what gets mapped.
 
@@ -151,7 +159,8 @@ update` and stays forward-compatible. Notable keys:
 
 Embeddings run locally via an on-device model cached under `~/.packmind/models`;
 your code is never sent anywhere for recall. The only optional network call is
-Anthropic's count-tokens endpoint, used solely when you enable exact counting.
+Anthropic's count-tokens endpoint, off by default and used only when you opt into
+exact counting (`cost.exact` other than `never`, or `packmind scan --exact`).
 
 ## Security
 

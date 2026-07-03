@@ -112,6 +112,17 @@ export function readJson<T>(target: string, fallback: T): T {
 export function writeJson(target: string, value: unknown): void {
   withLock(target, () => atomic(target, JSON.stringify(value, null, 2) + "\n"));
 }
+/**
+ * Read-modify-write a JSON file atomically: the read and the write happen inside
+ * one lock, so concurrent writers can't lose each other's update (the failure
+ * mode of a plain readJson + writeJson pair). Mirrors util/fs-atomic.ts.
+ */
+export function updateJson<T>(target: string, fallback: T, update: (current: T) => T): void {
+  withLock(target, () => {
+    const current = readJson<T>(target, fallback);
+    atomic(target, JSON.stringify(update(current), null, 2) + "\n");
+  });
+}
 
 // --- map format (mirror of state/formats.ts) --------------------------------
 export interface MapEntry {
@@ -245,10 +256,10 @@ export function samePath(root: string, a: string, b: string): boolean {
 
 // --- pricing (mirror of cost/pricing.ts) ------------------------------------
 const PRICES: Record<string, { i: number; o: number }> = {
-  "claude-opus-4-8": { i: 15, o: 75 },
+  "claude-opus-4-8": { i: 5, o: 25 },
   "claude-sonnet-4-6": { i: 3, o: 15 },
   "claude-haiku-4-5": { i: 1, o: 5 },
-  "claude-fable-5": { i: 5, o: 25 },
+  "claude-fable-5": { i: 10, o: 50 },
 };
 function normModel(m: string): string {
   const s = m.toLowerCase();
@@ -438,6 +449,10 @@ export interface Session {
   notifiedLean?: boolean;
   /** Compress-suggestion latch (fires once/session on a large non-source read). */
   notifiedCompress?: boolean;
+  /** Practice-check latches so each session-level check fires at most once/session. */
+  notifiedPractice?: string[];
+  /** Evidence the agent recorded (via record_evidence) to satisfy practice checks. */
+  evidence?: Array<{ check: string; detail?: string; at: string }>;
 }
 export function newSession(id: string): Session {
   return {
@@ -460,6 +475,84 @@ export function readSession(): Session | null {
 }
 export function writeSession(s: Session): void {
   writeJson(brainPath("state", "session.json"), s);
+}
+
+// --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------
+interface LedgerRow {
+  id: string;
+  started: string;
+  ended: string;
+  inputTokens: number;
+  outputTokens: number;
+  inputCost: number;
+  outputCost: number;
+  reads: number;
+  writes: number;
+  dedupedReads?: number;
+  mapHits?: number;
+}
+export interface LedgerLike {
+  version?: number;
+  model?: string;
+  createdAt?: string;
+  totals: {
+    inputTokens: number;
+    outputTokens: number;
+    inputCost: number;
+    outputCost: number;
+    reads: number;
+    writes: number;
+    sessions: number;
+    dedupedReads: number;
+    mapHits: number;
+  };
+  sessions: LedgerRow[];
+}
+
+/**
+ * Fold a session's CUMULATIVE counters into the lifetime ledger, upserting by
+ * session id. The Stop hook fires once per TURN carrying cumulative session
+ * totals, so a plain push+add would count each session quadratically; instead we
+ * replace the existing row for this id and adjust totals by the delta. Naturally
+ * idempotent (re-folding an identical session nets zero) and safe every turn.
+ * `totals.sessions` counts distinct ids. Mirrors commitSession in cost/ledger.ts.
+ */
+export function foldSessionIntoLedger(ledger: LedgerLike, s: Session, endedAt: string): void {
+  ledger.sessions = ledger.sessions ?? [];
+  const row: LedgerRow = {
+    id: s.id,
+    started: s.started,
+    ended: endedAt,
+    inputTokens: s.inputTokens,
+    outputTokens: s.outputTokens,
+    inputCost: s.inputCost,
+    outputCost: s.outputCost,
+    reads: Object.keys(s.reads).length,
+    writes: s.writes.length,
+    dedupedReads: s.dedupedReads,
+    mapHits: s.mapHits,
+  };
+  const t = ledger.totals;
+  const apply = (r: LedgerRow, k: number): void => {
+    t.inputTokens += k * r.inputTokens;
+    t.outputTokens += k * r.outputTokens;
+    t.inputCost += k * r.inputCost;
+    t.outputCost += k * r.outputCost;
+    t.reads += k * r.reads;
+    t.writes += k * r.writes;
+    t.dedupedReads += k * (r.dedupedReads ?? 0);
+    t.mapHits += k * (r.mapHits ?? 0);
+  };
+  const i = ledger.sessions.findIndex((x) => x.id === s.id);
+  if (i === -1) {
+    ledger.sessions.push(row);
+    t.sessions += 1;
+    apply(row, 1);
+  } else {
+    apply(ledger.sessions[i], -1);
+    ledger.sessions[i] = row;
+    apply(row, 1);
+  }
 }
 
 /**
@@ -519,6 +612,47 @@ export function compressNudge(rel: string, bytes: number, session: Session): str
   if (!COMPRESS_DATA_EXT.has(path.extname(rel).toLowerCase())) return null;
   session.notifiedCompress = true;
   return `\`${rel}\` is a large ${path.extname(rel)} file (~${Math.round(bytes / 1024)} KB). If you don't need it verbatim, read only the part you need, or read it then use compress() to keep the context lean.`;
+}
+
+// --- practice packs (session-level checks) ----------------------------------
+export interface SessionCheck {
+  id: string;
+  message: string;
+  /** Fire only if some file written this session matches one of these globs. */
+  changedGlobs: string[];
+  /** ...AND no file written this session matches any of these globs. */
+  missingChangedGlobs?: string[];
+  /** Suppressed while a recorded evidence entry has this `check` name. */
+  needsEvidence?: string;
+}
+
+/**
+ * Session-level practice-pack checks, evaluated at Stop: nudge when this session
+ * wrote a file matching `changedGlobs` but none matching `missingChangedGlobs`
+ * (e.g. "touched src/** but wrote no test"). A check whose `needsEvidence`
+ * matches a recorded evidence entry is SUPPRESSED - not latched, so removing the
+ * evidence lets it fire again (evidence is what keeps it quiet). Otherwise each
+ * check latches by id so it nudges at most once per session. Hook-only (no
+ * canonical twin, like leanNudge); the caller persists the session when the
+ * returned array is non-empty. Reuses pathGlobRe against the same glob dialect
+ * as evaluateWrite.
+ */
+export function computePracticeReminders(session: Session, checks: SessionCheck[]): string[] {
+  const out: string[] = [];
+  const latched = session.notifiedPractice ?? (session.notifiedPractice = []);
+  const files = session.writes.map((w) => w.file);
+  const evidence = session.evidence ?? [];
+  const hit = (globs?: string[]): boolean =>
+    !!globs && globs.some((g) => files.some((f) => pathGlobRe(g).test(f)));
+  for (const c of checks ?? []) {
+    if (latched.includes(c.id)) continue;
+    if (c.needsEvidence && evidence.some((e) => e.check === c.needsEvidence)) continue;
+    if (hit(c.changedGlobs) && !hit(c.missingChangedGlobs)) {
+      out.push(c.message);
+      latched.push(c.id);
+    }
+  }
+  return out;
 }
 
 // --- recall queue (zero-dep enqueue) ----------------------------------------
