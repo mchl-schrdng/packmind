@@ -9,6 +9,7 @@ import {
   toolRecall,
   toolRemember,
   toolRecordSolution,
+  toolRecordEvidence,
   toolProjectMap,
   toolUsageReport,
   toolInsights,
@@ -54,6 +55,18 @@ const TOOLS = [
         tags: { type: "array", items: { type: "string" } },
       },
       required: ["error"],
+    },
+  },
+  {
+    name: "record_evidence",
+    description: "Mark a practice check as satisfied this session (e.g. tests ran, a workflow was reviewed, a change is doc-only) so its Stop-hook nudge stays quiet. Call it when you have done the thing a practice reminder asked for, or when it legitimately doesn't apply.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        check: { type: "string", description: "The check name to satisfy, e.g. tests-updated, workflow-reviewed, release-checked" },
+        detail: { type: "string", description: "Optional note, e.g. why it does not apply" },
+      },
+      required: ["check"],
     },
   },
   {
@@ -146,6 +159,8 @@ async function main(): Promise<void> {
           return text(toolRemember(ctx, String(a.note ?? ""), a.kind));
         case "record_solution":
           return text(toolRecordSolution(ctx, { error: String(a.error ?? ""), cause: a.cause, fix: a.fix, file: a.file, tags: a.tags }));
+        case "record_evidence":
+          return text(toolRecordEvidence(ctx, { check: String(a.check ?? ""), detail: a.detail }));
         case "project_map":
           return text(toolProjectMap(ctx, a.filter));
         case "usage_report":

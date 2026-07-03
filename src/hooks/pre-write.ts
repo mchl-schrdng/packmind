@@ -5,6 +5,7 @@ import {
   confineToRoot,
   brainPath,
   readJson,
+  updateJson,
   hookConfig,
   evaluateWrite,
   parseNeverDo,
@@ -12,11 +13,11 @@ import {
   parseInput,
   readStdin,
   readSession,
-  writeSession,
   leanNudge,
   emitContext,
   emitDeny,
   type Rule,
+  type Session,
 } from "./runtime.js";
 
 function pendingContent(input: Record<string, any>): string {
@@ -42,8 +43,12 @@ async function main(): Promise<void> {
   const content = pendingContent(input);
   const cfg = hookConfig();
 
-  const policy = readJson<{ rules: Rule[] }>(brainPath("policy.json"), { rules: [] });
-  const { findings, block } = evaluateWrite(policy.rules, {
+  // The effective guard set (default rules + active practice packs + local
+  // policy.json) is pre-resolved by init/update; fall back to policy.json for a
+  // project that predates it.
+  const effective = readJson<{ rules?: Rule[] }>(brainPath("guard.effective.json"), {});
+  const rules = effective.rules ?? readJson<{ rules?: Rule[] }>(brainPath("policy.json"), {}).rules ?? [];
+  const { findings, block } = evaluateWrite(rules, {
     relPath: rel,
     content,
     blockSecrets: cfg.blockSecrets,
@@ -95,9 +100,14 @@ async function main(): Promise<void> {
   const session = readSession();
   if (session) {
     const lean = leanNudge(cfg.leanMode, session);
-    if (lean) {
-      notes.push(lean);
-      if (cfg.leanMode === "lite") writeSession(session);
+    if (lean) notes.push(lean);
+    // Persist only the latch, and inside a lock, so a parallel post-write's
+    // token/write accounting isn't clobbered by this read-modify-write.
+    if (cfg.leanMode === "lite" && session.notifiedLean) {
+      updateJson<Session | null>(brainPath("state", "session.json"), null, (prev) => {
+        if (prev) prev.notifiedLean = true;
+        return prev;
+      });
     }
   }
 

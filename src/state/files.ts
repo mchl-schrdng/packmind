@@ -14,6 +14,7 @@ export function brain(projectRoot: string) {
     usage: stateFile(projectRoot, "usage.json"),
     handoff: stateFile(projectRoot, "handoff.md"),
     policy: stateFile(projectRoot, "policy.json"),
+    effective: stateFile(projectRoot, "guard.effective.json"),
     identity: stateFile(projectRoot, "identity.md"),
     session: stateFile(projectRoot, "state", "session.json"),
     recallDir: stateFile(projectRoot, "recall"),
@@ -47,6 +48,10 @@ export interface SessionState {
   mapHits: number;
   mapMisses: number;
   dedupedReads: number;
+  /** Practice-check latches so each session-level check fires at most once/session. */
+  notifiedPractice?: string[];
+  /** Evidence the agent recorded (via record_evidence) to satisfy practice checks. */
+  evidence?: Array<{ check: string; detail?: string; at: string }>;
 }
 
 export function emptySession(id: string): SessionState {

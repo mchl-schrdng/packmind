@@ -8,9 +8,9 @@ import {
   readText,
   writeText,
   appendLine,
-  readSession,
-  writeSession,
+  updateJson,
   newSession,
+  type Session,
   hookConfig,
   parseMap,
   serializeMap,
@@ -86,15 +86,22 @@ async function main(): Promise<void> {
 
   if (cfg.recallEnabled && content) enqueueRecall(rel);
 
-  const session = readSession() ?? newSession("s-adhoc");
-  delete session.reads[rel]; // a write invalidates the prior read-dedupe guard
-  session.writes.push({ file: rel, action, tokens, at: new Date().toISOString() });
-  session.editCounts[rel] = (session.editCounts[rel] ?? 0) + 1;
-  session.outputTokens += tokens;
-  session.outputCost += outputCost(cfg.model, tokens, cfg.prices);
-  writeSession(session);
+  // Locked read-modify-write so a concurrent hook (e.g. a parallel Read, or the
+  // MCP record_evidence tool) can't lose this update to the shared session file.
+  const at = new Date().toISOString();
+  let editCount = 0;
+  updateJson<Session | null>(brainPath("state", "session.json"), null, (prev) => {
+    const session = prev ?? newSession("s-adhoc");
+    delete session.reads[rel]; // a write invalidates the prior read-dedupe guard
+    session.writes.push({ file: rel, action, tokens, at });
+    session.editCounts[rel] = (session.editCounts[rel] ?? 0) + 1;
+    session.outputTokens += tokens;
+    session.outputCost += outputCost(cfg.model, tokens, cfg.prices);
+    editCount = session.editCounts[rel];
+    return session;
+  });
 
-  if (session.editCounts[rel] === 4) {
+  if (editCount === 4) {
     emitContext(
       "PostToolUse",
       `You've edited \`${rel}\` several times this session. Consider a different approach and record the lesson via the \`remember\` tool.`,

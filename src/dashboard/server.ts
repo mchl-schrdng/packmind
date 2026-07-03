@@ -44,8 +44,26 @@ interface Ctx {
 }
 
 function send(res: http.ServerResponse, code: number, type: string, body: string | Buffer): void {
-  res.writeHead(code, { "content-type": type, "cache-control": "no-store" });
+  res.writeHead(code, {
+    "content-type": type,
+    "cache-control": "no-store",
+    // The page carries the API token; forbid framing so it can't be clickjacked.
+    "content-security-policy": "frame-ancestors 'none'",
+    "x-frame-options": "DENY",
+  });
   res.end(body);
+}
+
+/**
+ * The dashboard binds to loopback, but a malicious web page can still reach it
+ * via DNS rebinding (its hostname resolves to 127.0.0.1 while the browser sends
+ * `Host: attacker.com`). Requiring the Host header itself to name a loopback
+ * address defeats that: a rebinding request carries the attacker's hostname.
+ */
+function hostIsLoopback(hostHeader: string | undefined): boolean {
+  if (!hostHeader) return false;
+  const host = hostHeader.replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase();
+  return host === "localhost" || host === "127.0.0.1" || host === "::1";
 }
 function json(res: http.ServerResponse, code: number, value: unknown): void {
   send(res, code, "application/json", JSON.stringify(value));
@@ -80,6 +98,12 @@ function mapEntries(ctx: Ctx) {
 async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: Ctx, html: string): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost");
   const token = url.searchParams.get("token") ?? req.headers["x-packmind-token"];
+
+  // Reject cross-origin/rebinding requests before serving the token-bearing page
+  // or touching the API.
+  if (!hostIsLoopback(req.headers.host)) {
+    return send(res, 403, "text/plain; charset=utf-8", "Forbidden: PackMind dashboard only serves loopback hosts.");
+  }
 
   if (url.pathname === "/") {
     return send(res, 200, "text/html; charset=utf-8", html.replace("__TOKEN__", ctx.token));

@@ -1,7 +1,7 @@
 import * as fs from "node:fs";
-import { brain } from "../state/files.js";
+import { brain, type SessionState } from "../state/files.js";
 import { loadConfig, type Config } from "../state/schema.js";
-import { readJsonOr, writeJson, readTextOr, writeText } from "../util/fs-atomic.js";
+import { readJsonOr, writeJson, readTextOr, writeText, updateJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { harvestDebt } from "../state/debt.js";
 import { gitDiff, reviewPayload } from "../state/review.js";
@@ -21,6 +21,31 @@ export interface ToolContext {
 export function makeContext(projectRoot: string): ToolContext {
   const config = loadConfig(brain(projectRoot).config);
   return { projectRoot, config, embedder: new LocalEmbedder(config.recall.embedModel) };
+}
+
+/**
+ * Record evidence that a practice check has been satisfied (e.g. tests were run,
+ * a workflow was reviewed). The entry is appended to the live session so the
+ * matching session-level check stops nudging at Stop. Writes the SAME
+ * .packmind/state/session.json the hooks use, via the same file lock, so a
+ * concurrent hook write can't lose it.
+ */
+export function toolRecordEvidence(ctx: ToolContext, args: { check: string; detail?: string }): string {
+  const check = String(args.check ?? "").trim();
+  if (!check) return "Nothing to record (empty check).";
+  let recorded = false;
+  updateJson<SessionState | null>(brain(ctx.projectRoot).session, null, (s) => {
+    if (!s) return s; // no live session (nothing running); nothing to satisfy
+    s.evidence = [
+      ...(s.evidence ?? []),
+      { check, detail: args.detail ? String(args.detail) : undefined, at: new Date().toISOString() },
+    ];
+    recorded = true;
+    return s;
+  });
+  return recorded
+    ? `Evidence recorded for "${check}". The matching practice check will stay quiet this session.`
+    : `No active session to attach evidence to (recorded nothing).`;
 }
 
 export async function toolRecall(ctx: ToolContext, query: string): Promise<string> {

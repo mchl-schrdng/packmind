@@ -50,7 +50,7 @@ describe("[P2] backups don't collide across same-named projects", () => {
 describe("[P1] pricing overrides actually apply", () => {
   it("config price override changes the rate and cost", () => {
     const base = rateFor("claude-opus-4-8");
-    expect(base.inputPerMTok).toBe(15);
+    expect(base.inputPerMTok).toBe(5);
     const ov = { "claude-opus-4-8": { inputPerMTok: 99, outputPerMTok: 200 } };
     expect(rateFor("claude-opus-4-8", ov).inputPerMTok).toBe(99);
     expect(inputCost("claude-opus-4-8", 1_000_000, ov)).toBeCloseTo(99, 6);

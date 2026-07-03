@@ -1,10 +1,11 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 import chalk from "chalk";
-import { readJsonOr, writeJson } from "../util/fs-atomic.js";
-import { DEFAULT_CONFIG, deepMerge, type Config } from "../state/schema.js";
+import { writeJson } from "../util/fs-atomic.js";
+import { loadConfig } from "../state/schema.js";
 import { brain } from "../state/files.js";
 import { registerHooks, registerMcp } from "../adapters/claude-code.js";
+import { writeEffective } from "../guard/practices.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { pruneRegistry, registerProject, type RegistryEntry } from "./registry.js";
 import { seedBrainFiles } from "./seed.js";
@@ -44,9 +45,10 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
   // policy.json an older version never wrote), and refresh .gitattributes/.gitignore.
   seedBrainFiles(b.dir);
 
-  // config.json: deep-merge template defaults UNDER the user's existing config,
-  // preserving any values they customized while adding new keys.
-  const config = deepMerge(DEFAULT_CONFIG, readJsonOr<Partial<Config>>(b.config, {}));
+  // config.json: loadConfig deep-merges template defaults UNDER the user's
+  // existing config (preserving customized values, adding new keys) and confines
+  // the config-supplied claude.* paths so a tampered config can't redirect writes.
+  const config = loadConfig(b.config);
   writeJson(b.config, config);
 
   fs.mkdirSync(b.hooksDir, { recursive: true });
@@ -55,6 +57,7 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
 
   registerHooks(path.join(entry.root, config.claude.settingsPath));
   registerMcp(path.join(entry.root, ".mcp.json"));
+  writeEffective(entry.root, config); // refresh resolved guard set
   registerProject(entry.root, pkgVersion());
   console.log(`  ${chalk.green("✓")} ${entry.name}`);
 }

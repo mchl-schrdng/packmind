@@ -63,6 +63,17 @@ describe("Claude Code adapter", () => {
     expect(after.hooks.Stop[0].hooks[0].command).toBe("mine");
   });
 
+  it("refuses to clobber a settings.json that exists but is malformed", () => {
+    const dir = tmp();
+    const p = path.join(dir, "settings.json");
+    // A real-world corruption: a trailing comma the user left behind.
+    const malformed = '{ "permissions": { "allow": ["Bash"] }, }';
+    fs.writeFileSync(p, malformed);
+    expect(() => registerHooks(p)).toThrow(/not valid JSON/);
+    // The user's file is left exactly as it was, not overwritten with our hooks.
+    expect(fs.readFileSync(p, "utf8")).toBe(malformed);
+  });
+
   it("registers the MCP server without clobbering others", () => {
     const dir = tmp();
     const p = path.join(dir, ".mcp.json");

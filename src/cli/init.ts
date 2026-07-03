@@ -6,6 +6,7 @@ import { brain } from "../state/files.js";
 import { loadConfig } from "../state/schema.js";
 import { scanProject } from "../state/mapper.js";
 import { registerHooks, registerMcp } from "../adapters/claude-code.js";
+import { writeEffective } from "../guard/practices.js";
 import { ensureDir } from "../util/paths.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { registerProject } from "./registry.js";
@@ -58,6 +59,7 @@ export function runInit(): void {
   registerHooks(path.join(projectRoot, config.claude.settingsPath));
   registerMcp(path.join(projectRoot, ".mcp.json"));
   wireClaudeMd(projectRoot, config.claude.claudeMdPath);
+  writeEffective(projectRoot, config); // resolve default + practice packs + local policy
 
   if (config.map.autoScanOnInit) {
     const count = scanProject(projectRoot, config);

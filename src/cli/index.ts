@@ -7,6 +7,7 @@ import { runIndex } from "./index-cmd.js";
 import { runRecall } from "./recall-cmd.js";
 import { runSolutions } from "./solutions-cmd.js";
 import { runPolicyCheck } from "./policy-cmd.js";
+import { runPracticeList, runPracticeAdd, runPracticeRemove, runPracticeExplain } from "./practice-cmd.js";
 import { runDoctor } from "./doctor.js";
 import { runUpdate } from "./update.js";
 import { runMcp } from "./mcp-cmd.js";
@@ -64,6 +65,12 @@ export function createProgram(): Command {
 
   const policy = program.command("policy").description("Guardrail policy");
   policy.command("check").description("Lint policy.json").action(runPolicyCheck);
+
+  const practice = program.command("practice").description("Composable practice packs (tests, CI, release, security reflexes)");
+  practice.command("list").description("List bundled packs and which are active").action(runPracticeList);
+  practice.command("add <pack>").description("Activate a practice pack").action((p) => runPracticeAdd(p));
+  practice.command("remove <pack>").description("Deactivate a practice pack").action((p) => runPracticeRemove(p));
+  practice.command("explain <path>").description("Show which rules/checks apply to a path").action((p) => runPracticeExplain(p));
 
   program
     .command("update")

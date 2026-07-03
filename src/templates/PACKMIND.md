@@ -41,6 +41,9 @@ Mode is set by `guard.lean.mode` in `config.json` (`off` | `lite` | `full`).
 - `remember(note, kind)` - save a preference, decision, never-do rule, or note.
 - `record_solution(error, cause, fix, tags)` - log a fix so it's never
   rediscovered.
+- `record_evidence(check, detail?)` - mark a practice check satisfied this session
+  (e.g. tests ran, a workflow was reviewed, a change is doc-only) so its Stop-hook
+  nudge stays quiet. Call it once you've done what a practice reminder asked for.
 - `project_map(filter?)` - list files with descriptions and token estimates.
 - `usage_report()` - token usage and dollar cost so far.
 - `insights()` - where tokens go and what PackMind saved (savings, coverage, heaviest files).

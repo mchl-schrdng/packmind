@@ -2,14 +2,18 @@ import {
   requireState,
   brainPath,
   readJson,
-  writeJson,
+  updateJson,
   writeText,
   appendLine,
   readSession,
   writeSession,
   computeStopReminders,
+  computePracticeReminders,
+  foldSessionIntoLedger,
   hookConfig,
   emitContext,
+  type LedgerLike,
+  type SessionCheck,
 } from "./runtime.js";
 
 async function main(): Promise<void> {
@@ -22,36 +26,23 @@ async function main(): Promise<void> {
 
   const cfg = hookConfig();
 
-  // Commit the session into the lifetime usage ledger (inline; hooks are dep-free).
-  const usagePath = brainPath("usage.json");
-  const ledger = readJson<any>(usagePath, null);
-  if (ledger?.totals) {
-    ledger.sessions = ledger.sessions ?? [];
-    ledger.sessions.push({
-      id: session.id,
-      started: session.started,
-      ended: new Date().toISOString(),
-      inputTokens: session.inputTokens,
-      outputTokens: session.outputTokens,
-      inputCost: session.inputCost,
-      outputCost: session.outputCost,
-      reads,
-      writes: session.writes.length,
-      dedupedReads: session.dedupedReads,
-      mapHits: session.mapHits,
-    });
-    const t = ledger.totals;
-    t.inputTokens += session.inputTokens;
-    t.outputTokens += session.outputTokens;
-    t.inputCost += session.inputCost;
-    t.outputCost += session.outputCost;
-    t.reads += reads;
-    t.writes += session.writes.length;
-    t.sessions += 1;
-    t.dedupedReads += session.dedupedReads;
-    t.mapHits += session.mapHits;
-    writeJson(usagePath, ledger);
-  }
+  // Commit the session into the lifetime usage ledger. Stop fires once per TURN
+  // with cumulative session totals, so the fold upserts by session id (replacing
+  // this session's row and adjusting totals by the delta) rather than pushing a
+  // new row each turn - otherwise every figure inflates quadratically. The
+  // read-modify-write is locked so a concurrent writer can't lose the update.
+  const endedAt = new Date().toISOString();
+  const emptyLedger = (): LedgerLike => ({
+    version: 1,
+    model: cfg.model,
+    createdAt: endedAt,
+    totals: { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, reads: 0, writes: 0, sessions: 0, dedupedReads: 0, mapHits: 0 },
+    sessions: [],
+  });
+  updateJson<LedgerLike>(brainPath("usage.json"), emptyLedger(), (ledger) => {
+    foldSessionIntoLedger(ledger, session, endedAt);
+    return ledger;
+  });
 
   const turnCost = session.inputCost + session.outputCost;
   appendLine(
@@ -81,8 +72,13 @@ async function main(): Promise<void> {
 
   // Latch reminders so each fires at most once per session - otherwise the
   // still-true condition re-emits every turn and the Stop emission re-invokes
-  // the agent in an infinite loop.
-  const reminders = computeStopReminders(session);
+  // the agent in an infinite loop. Practice-pack session checks (e.g. "src/**
+  // changed but no test written") come from the pre-resolved effective guard set.
+  const effective = readJson<{ checks?: SessionCheck[] }>(brainPath("guard.effective.json"), {});
+  const reminders = [
+    ...computeStopReminders(session),
+    ...computePracticeReminders(session, effective.checks ?? []),
+  ];
   if (reminders.length) writeSession(session);
   emitContext("Stop", reminders.join(" "));
 }
