@@ -55,18 +55,63 @@ export function listSnapshots(projectRoot: string): string[] {
 }
 
 export function restoreSnapshot(projectRoot: string, label: string): boolean {
-  const src = path.join(projectBackupDir(projectRoot), label);
-  if (!fs.existsSync(src)) return false;
-  // Restore EXACTLY: clear the current brain first so files created after the
-  // snapshot (stale policy.json, usage.json, archives, vectors) don't survive.
-  const dest = brain(projectRoot).dir;
+  // Only accept a label `listSnapshots` actually returned. That rejects path
+  // separators, "..", absolute paths, and anything outside this project's backup
+  // namespace BEFORE we touch the filesystem - a raw `path.join(dir, label)`
+  // would happily resolve `../../elsewhere` and let restore copy an unrelated
+  // directory over the brain.
+  if (!listSnapshots(projectRoot).includes(label)) return false;
+
+  const backupDir = projectBackupDir(projectRoot);
+  const src = path.join(backupDir, label);
+  // Defense in depth: confirm the resolved source really lives under the backup
+  // namespace (guards against a symlinked snapshot entry).
+  let realSrc: string;
+  let realBackupDir: string;
   try {
-    fs.rmSync(dest, { recursive: true, force: true });
+    realSrc = fs.realpathSync(src);
+    realBackupDir = fs.realpathSync(backupDir);
   } catch {
-    /* nothing to clear */
+    return false;
   }
-  fs.cpSync(src, dest, { recursive: true });
-  return true;
+  const inside = path.relative(realBackupDir, realSrc);
+  if (inside === "" || inside.startsWith("..") || path.isAbsolute(inside)) return false;
+
+  const dest = brain(projectRoot).dir;
+  // A pre-restore emergency snapshot is mandatory: if we can't back up the
+  // current brain, we refuse rather than risk an unrecoverable overwrite.
+  if (fs.existsSync(dest)) {
+    try {
+      createSnapshot(projectRoot, `pre-restore-${timestamp()}`);
+    } catch {
+      return false;
+    }
+  }
+
+  // Restore transactionally: copy into a staging sibling, then swap it in. The
+  // original brain is moved aside (not deleted) until the swap succeeds, so a
+  // crash or copy failure mid-restore can't leave the brain half-replaced.
+  const suffix = crypto.randomBytes(5).toString("hex");
+  const staging = `${dest}.restore-${suffix}.tmp`;
+  const old = `${dest}.old-${suffix}`;
+  try {
+    fs.rmSync(staging, { recursive: true, force: true });
+    fs.cpSync(realSrc, staging, { recursive: true });
+    if (fs.existsSync(dest)) fs.renameSync(dest, old);
+    fs.renameSync(staging, dest);
+    fs.rmSync(old, { recursive: true, force: true });
+    return true;
+  } catch {
+    // Roll back: if we moved the original aside but never swapped in the new
+    // copy, put the original back so the brain is never lost.
+    try {
+      if (fs.existsSync(old) && !fs.existsSync(dest)) fs.renameSync(old, dest);
+    } catch {
+      /* best effort */
+    }
+    fs.rmSync(staging, { recursive: true, force: true });
+    return false;
+  }
 }
 
 /** Keep only the most recent `keep` snapshots; returns how many were removed. */

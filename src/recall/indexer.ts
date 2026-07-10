@@ -4,7 +4,7 @@ import { walkProject } from "../state/walk.js";
 import { brain } from "../state/files.js";
 import { chunkText, type Chunk } from "./chunker.js";
 import { VectorStore, type VectorRecord } from "./store.js";
-import { drainQueue } from "./queue.js";
+import { peekQueue, ackQueue } from "./queue.js";
 import type { Embedder } from "./embedder.js";
 import type { Config } from "../state/schema.js";
 
@@ -78,20 +78,29 @@ export async function refreshFromQueue(
   config: Config,
   embedder: Embedder,
 ): Promise<number> {
-  const queued = drainQueue(projectRoot);
+  // Peek (don't drain): the queue is only acknowledged AFTER a successful save,
+  // so a failed embed (model download/load error) leaves the work item on disk
+  // for a later retry instead of silently losing it.
+  const queued = peekQueue(projectRoot);
   if (queued.length === 0) return 0;
-  const store = new VectorStore(brain(projectRoot).vectors, config.recall.embedModel);
 
-  // Clear every queued source's old embeddings up-front. Whatever still has
-  // content is re-added below; a deleted OR emptied file (which yields no
-  // chunks) therefore stays gone instead of lingering in recall results.
-  for (const rel of queued) store.removeSource(rel);
-
+  // Embed first; if this throws, we've mutated nothing (store untouched, queue
+  // intact).
   const present = queued.filter((rel) => fs.existsSync(path.join(projectRoot, rel)));
   const chunks = collectChunks(projectRoot, config, present);
   const records = await embedChunks(embedder, chunks);
+
+  const store = new VectorStore(brain(projectRoot).vectors, config.recall.embedModel);
+  // Clear every queued source's old embeddings. Whatever still has content is
+  // re-added below; a deleted OR emptied file (which yields no chunks) therefore
+  // stays gone instead of lingering in recall results.
+  for (const rel of queued) store.removeSource(rel);
   store.upsertBySource(records);
   store.save();
+
+  // Only now acknowledge the work, removing exactly what we processed and
+  // preserving anything the hooks enqueued while we were embedding.
+  ackQueue(projectRoot, queued);
   return records.length;
 }
 

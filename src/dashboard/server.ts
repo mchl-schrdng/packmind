@@ -4,7 +4,7 @@ import * as crypto from "node:crypto";
 import { URL } from "node:url";
 import { brain } from "../state/files.js";
 import { loadConfig, type Config } from "../state/schema.js";
-import { readTextOr, readJsonOr, writeJson, writeText } from "../util/fs-atomic.js";
+import { readTextOr, readJsonOr, writeJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
 import { readLedger, totalCost } from "../cost/ledger.js";
 import { computeInsights } from "../cost/insights.js";
@@ -13,6 +13,7 @@ import { recall, indexSize } from "../recall/indexer.js";
 import { LocalEmbedder } from "../recall/embedder.js";
 import { DEFAULT_POLICY, validateRules, type Rule } from "../guard/policy.js";
 import { applyConfigPatch, summarizeClaudeConfig, ALLOWED_CONFIG_KEYS } from "./config-api.js";
+import { savePolicy, saveKnowledge } from "../state/mutations.js";
 import { TEMPLATES_DIR } from "../cli/locate.js";
 import * as path from "node:path";
 
@@ -157,7 +158,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
           if (!Array.isArray(rules)) return json(res, 400, { errors: ["body must be { rules: [...] }"] });
           const errors = validateRules(rules);
           if (errors.length) return json(res, 400, { errors });
-          writeJson(b.policy, { version: 1, rules });
+          // Regenerate guard.effective.json too: the hooks read the effective
+          // set, not policy.json, so a bare policy write leaves guards stale.
+          savePolicy(ctx.projectRoot, ctx.config, rules);
           return json(res, 200, { ok: true });
         }
         return json(res, 200, readJsonOr(b.policy, DEFAULT_POLICY));
@@ -166,7 +169,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
         const body = await readJsonBody(req);
         const text = (body as { text?: string })?.text;
         if (typeof text !== "string") return json(res, 400, { errors: ["body must be { text: string }"] });
-        writeText(b.knowledge, text);
+        // Enqueue for recall too, so the edited knowledge is re-embedded.
+        saveKnowledge(ctx.projectRoot, text);
         return json(res, 200, { ok: true });
       }
       if (url.pathname === "/api/claude-config") {

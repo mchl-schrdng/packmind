@@ -9,7 +9,7 @@ import { parseNeverDo } from "../src/state/formats.js";
 import { makeContext, toolRemember } from "../src/mcp/tools.js";
 import { buildIndex, refreshFromQueue } from "../src/recall/indexer.js";
 import { VectorStore } from "../src/recall/store.js";
-import { enqueue } from "../src/recall/queue.js";
+import { enqueue, peekQueue, ackQueue } from "../src/recall/queue.js";
 import { DEFAULT_CONFIG } from "../src/state/schema.js";
 import { brain } from "../src/state/files.js";
 import type { Embedder } from "../src/recall/embedder.js";
@@ -95,6 +95,45 @@ describe("[P2] incremental recall drops emptied/deleted sources", () => {
     await refreshFromQueue(dir, config, embedder);
     store = new VectorStore(brain(dir).vectors);
     expect(store.sources().has("src/a.ts")).toBe(false);
+  });
+});
+
+describe("[P1] recall queue consume is not lossy", () => {
+  it("a failed embed leaves the queued work intact for a later retry", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-r3q-"));
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.mkdirSync(path.join(brain(dir).dir, "recall"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "a.ts"), "alpha beta gamma");
+    const config = { ...DEFAULT_CONFIG, map: { ...DEFAULT_CONFIG.map, respectGitignore: false } };
+
+    enqueue(dir, "src/a.ts");
+
+    // First refresh fails while embedding (model download/load error simulated).
+    const boom: Embedder = {
+      dimensions: () => 3,
+      embed: async () => {
+        throw new Error("model load failed");
+      },
+    };
+    await expect(refreshFromQueue(dir, config, boom)).rejects.toThrow();
+
+    // The work item must survive so a later run can still index it.
+    expect(peekQueue(dir)).toContain("src/a.ts");
+
+    // A subsequent healthy refresh processes it and drains it.
+    const count = await refreshFromQueue(dir, config, new StubEmbedder());
+    expect(count).toBeGreaterThan(0);
+    expect(peekQueue(dir)).not.toContain("src/a.ts");
+  });
+
+  it("ack removes only processed paths, preserving work enqueued during the build", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-r3ack-"));
+    fs.mkdirSync(path.join(brain(dir).dir, "recall"), { recursive: true });
+    enqueue(dir, "a.ts");
+    const processing = peekQueue(dir); // snapshot the indexer would work on
+    enqueue(dir, "b.ts"); // arrives mid-build
+    ackQueue(dir, processing);
+    expect(peekQueue(dir)).toEqual(["b.ts"]); // a.ts acked, b.ts preserved
   });
 });
 
