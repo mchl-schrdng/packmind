@@ -452,6 +452,14 @@ export interface ReadRecord {
 export interface Session {
   id: string;
   started: string;
+  sessionId?: string;
+  transcriptPath?: string;
+  status?: "active" | "suspended";
+  lastEventAt?: string;
+  initialSource?: string;
+  lastSource?: string;
+  model?: string;
+  cwd?: string;
   reads: Record<string, ReadRecord>;
   writes: Array<{ file: string; action: string; tokens: number; at: string }>;
   editCounts: Record<string, number>;
@@ -495,6 +503,92 @@ export function readSession(): Session | null {
 }
 export function writeSession(s: Session): void {
   writeJson(brainPath("state", "session.json"), s);
+}
+
+// --- per-session lifecycle (mirror of state/session.ts) ---------------------
+const REMOVE_REASONS = new Set([
+  "clear", "logout", "prompt_input_exit", "bypass_permissions_disabled", "other",
+]);
+export interface SessionStartInput {
+  source: string;
+  now: string;
+  newIncarnationId: string;
+  sessionId: string;
+  transcriptPath?: string;
+  model?: string;
+  cwd?: string;
+}
+export interface SessionEndInput { reason: string; now: string; }
+export function sessionRawKey(input: Record<string, any>): string | null {
+  const sid = input?.session_id;
+  if (typeof sid === "string" && sid.trim()) return sid;
+  const tp = input?.transcript_path;
+  if (typeof tp === "string" && tp.trim()) return tp;
+  return null;
+}
+export function sessionFile(rawKey: string): string {
+  const hash = crypto.createHash("sha256").update(rawKey).digest("hex").slice(0, 16);
+  return brainPath("state", "sessions", `${hash}.json`);
+}
+export function freshRecord(input: SessionStartInput): Session {
+  const s = newSession(input.newIncarnationId);
+  s.started = input.now;
+  s.sessionId = input.sessionId;
+  if (input.transcriptPath) s.transcriptPath = input.transcriptPath;
+  s.status = "active";
+  s.lastEventAt = input.now;
+  s.initialSource = input.source;
+  s.lastSource = input.source;
+  if (input.model) s.model = input.model;
+  if (input.cwd) s.cwd = input.cwd;
+  return s;
+}
+export function applySessionStart(
+  existing: Session | null,
+  input: SessionStartInput,
+): { record: Session; fold: Session | null } {
+  if (input.source === "clear" && existing) {
+    return { record: freshRecord(input), fold: existing };
+  }
+  if (existing) {
+    return {
+      record: {
+        ...existing,
+        status: "active",
+        lastEventAt: input.now,
+        lastSource: input.source,
+        model: input.model ?? existing.model,
+      },
+      fold: null,
+    };
+  }
+  return { record: freshRecord(input), fold: null };
+}
+export function classifySessionEnd(reason: string): "remove" | "suspend" {
+  return REMOVE_REASONS.has(reason) ? "remove" : "suspend";
+}
+export function applySessionEnd(
+  existing: Session,
+  input: SessionEndInput,
+): { fold: Session; remove: boolean; record: Session | null } {
+  if (classifySessionEnd(input.reason) === "remove") {
+    return { fold: existing, remove: true, record: null };
+  }
+  return {
+    fold: existing,
+    remove: false,
+    record: { ...existing, status: "suspended", lastEventAt: input.now },
+  };
+}
+export function readSessionFor(rawKey: string): Session | null {
+  return readJson<Session | null>(sessionFile(rawKey), null);
+}
+export function updateSession(rawKey: string, fn: (s: Session) => void): void {
+  updateJson<Session | null>(sessionFile(rawKey), null, (prev) => {
+    const s = prev ?? newSession(rawKey);
+    fn(s);
+    return s;
+  });
 }
 
 // --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------
