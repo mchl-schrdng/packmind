@@ -80,13 +80,16 @@ export async function refreshFromQueue(
 ): Promise<number> {
   // Peek (don't drain): the queue is only acknowledged AFTER a successful save,
   // so a failed embed (model download/load error) leaves the work item on disk
-  // for a later retry instead of silently losing it.
-  const queued = peekQueue(projectRoot);
-  if (queued.length === 0) return 0;
+  // for a later retry instead of silently losing it. Each entry carries the
+  // generation observed here; ackQueue only removes a path still at that
+  // generation, so a re-enqueue during embedding survives for reprocessing.
+  const entries = peekQueue(projectRoot);
+  if (!entries.length) return 0;
+  const paths = entries.map((e) => e.path);
 
   // Embed first; if this throws, we've mutated nothing (store untouched, queue
   // intact).
-  const present = queued.filter((rel) => fs.existsSync(path.join(projectRoot, rel)));
+  const present = paths.filter((rel) => fs.existsSync(path.join(projectRoot, rel)));
   const chunks = collectChunks(projectRoot, config, present);
   const records = await embedChunks(embedder, chunks);
 
@@ -94,13 +97,14 @@ export async function refreshFromQueue(
   // Clear every queued source's old embeddings. Whatever still has content is
   // re-added below; a deleted OR emptied file (which yields no chunks) therefore
   // stays gone instead of lingering in recall results.
-  for (const rel of queued) store.removeSource(rel);
+  for (const rel of paths) store.removeSource(rel);
   store.upsertBySource(records);
   store.save();
 
-  // Only now acknowledge the work, removing exactly what we processed and
-  // preserving anything the hooks enqueued while we were embedding.
-  ackQueue(projectRoot, queued);
+  // Only now acknowledge the work, removing exactly what we processed (and only
+  // at the generation we processed) and preserving anything the hooks enqueued
+  // while we were embedding.
+  ackQueue(projectRoot, entries);
   return records.length;
 }
 

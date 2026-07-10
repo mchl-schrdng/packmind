@@ -118,12 +118,12 @@ describe("[P1] recall queue consume is not lossy", () => {
     await expect(refreshFromQueue(dir, config, boom)).rejects.toThrow();
 
     // The work item must survive so a later run can still index it.
-    expect(peekQueue(dir)).toContain("src/a.ts");
+    expect(peekQueue(dir).map((e) => e.path)).toContain("src/a.ts");
 
     // A subsequent healthy refresh processes it and drains it.
     const count = await refreshFromQueue(dir, config, new StubEmbedder());
     expect(count).toBeGreaterThan(0);
-    expect(peekQueue(dir)).not.toContain("src/a.ts");
+    expect(peekQueue(dir).map((e) => e.path)).not.toContain("src/a.ts");
   });
 
   it("ack removes only processed paths, preserving work enqueued during the build", () => {
@@ -133,7 +133,46 @@ describe("[P1] recall queue consume is not lossy", () => {
     const processing = peekQueue(dir); // snapshot the indexer would work on
     enqueue(dir, "b.ts"); // arrives mid-build
     ackQueue(dir, processing);
-    expect(peekQueue(dir)).toEqual(["b.ts"]); // a.ts acked, b.ts preserved
+    expect(peekQueue(dir).map((e) => e.path)).toEqual(["b.ts"]); // a.ts acked, b.ts preserved
+  });
+
+  it("a same-path re-enqueue during embedding survives the ack (generation advanced)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-r3gen-"));
+    fs.mkdirSync(path.join(brain(dir).dir, "recall"), { recursive: true });
+
+    enqueue(dir, "a.ts"); // gen 1
+    const processing = peekQueue(dir); // the indexer embeds THIS snapshot
+    expect(processing).toEqual([{ path: "a.ts", gen: 1 }]);
+
+    enqueue(dir, "a.ts"); // file changed mid-embed -> gen 2
+
+    // Acking the older snapshot must NOT drop the path: its generation moved on.
+    ackQueue(dir, processing);
+    expect(peekQueue(dir).map((e) => e.path)).toContain("a.ts");
+    expect(peekQueue(dir)).toEqual([{ path: "a.ts", gen: 2 }]);
+
+    // A fresh peek+ack (nothing raced this time) drains it.
+    ackQueue(dir, peekQueue(dir));
+    expect(peekQueue(dir)).toEqual([]);
+  });
+
+  it("migrates a legacy string[] queue on disk to generation 1", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-r3mig-"));
+    fs.mkdirSync(path.join(brain(dir).dir, "recall"), { recursive: true });
+
+    // Simulate a queue.json written by an older PackMind (a bare array).
+    fs.writeFileSync(brain(dir).queue, JSON.stringify(["a.ts", "b.ts"]));
+
+    // Reads as generation 1 without losing entries.
+    expect(peekQueue(dir)).toEqual([
+      { path: "a.ts", gen: 1 },
+      { path: "b.ts", gen: 1 },
+    ]);
+
+    // A subsequent enqueue of an existing path bumps its generation.
+    enqueue(dir, "a.ts");
+    const byPath = Object.fromEntries(peekQueue(dir).map((e) => [e.path, e.gen]));
+    expect(byPath).toEqual({ "a.ts": 2, "b.ts": 1 });
   });
 });
 

@@ -21,7 +21,7 @@ export function createProgram(): Command {
   const program = new Command();
   program
     .name("packmind")
-    .description("A second brain for Claude Code: project memory, real token & cost accounting, semantic recall, and active guardrails.")
+    .description("A second brain for Claude Code: project memory, estimated token & cost activity, semantic recall, and active guardrails.")
     .version(pkgVersion());
 
   program.command("init").description("Initialize .packmind/, register hooks and the MCP server").action(runInit);
