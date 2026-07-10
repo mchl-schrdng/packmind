@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import * as os from "node:os";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { looksSecret } from "../src/guard/secrets.js";
 import { confineToRoot, samePath } from "../src/guard/path-guard.js";
 import { evaluateWrite, DEFAULT_POLICY } from "../src/guard/policy.js";
@@ -20,6 +23,19 @@ describe("path guard", () => {
   it("samePath avoids suffix collisions", () => {
     expect(samePath("/p", "util/a.ts", "src/util/a.ts")).toBe(false);
     expect(samePath("/p", "./src/a.ts", "src/a.ts")).toBe(true);
+  });
+  it("rejects a lexically-in-root path whose real ancestor is a symlink out of root", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-sym-"));
+    const project = path.join(base, "project");
+    const outside = path.join(base, "outside");
+    fs.mkdirSync(project);
+    fs.mkdirSync(outside);
+    // `project/link` looks in-root lexically, but really points outside it.
+    fs.symlinkSync(outside, path.join(project, "link"));
+    // A write under the symlink would land in `outside` - must be refused.
+    expect(confineToRoot(project, "link/CLAUDE.md")).toBeNull();
+    // A genuine in-root path is still accepted.
+    expect(confineToRoot(project, "src/a.ts")).toBe(path.join(project, "src", "a.ts"));
   });
 });
 

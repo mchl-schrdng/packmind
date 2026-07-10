@@ -31,6 +31,32 @@ describe("[P2] restore is exact (no stale overlay)", () => {
   });
 });
 
+describe("[P1] restore rejects traversal labels and never destroys the brain", () => {
+  it("a '../'-style label is refused and leaves the current brain intact", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-trav-"));
+    seedBrain(dir);
+    createSnapshot(dir, "snap");
+
+    // Plant an unrelated directory a traversal label could point at.
+    const outside = path.join(dir, "..", "pm-trav-outside");
+    fs.mkdirSync(outside, { recursive: true });
+    fs.writeFileSync(path.join(outside, "attacker.txt"), "pwned");
+
+    // The label resolves outside the project's backup namespace. Restore must
+    // refuse it AND must not have deleted the live brain in the process.
+    const rel = path.relative(
+      // projectBackupDir is internal; reconstruct a traversal that climbs out of
+      // it and into `outside`. Any separator/dot label is illegitimate anyway.
+      dir,
+      outside,
+    );
+    expect(restoreSnapshot(dir, `../../${rel}`)).toBe(false);
+    expect(fs.existsSync(brain(dir).dir)).toBe(true); // brain not wiped
+    expect(fs.existsSync(path.join(brain(dir).dir, "attacker.txt"))).toBe(false); // nothing copied in
+    expect(fs.readFileSync(brain(dir).knowledge, "utf8")).toContain("v1"); // untouched
+  });
+});
+
 describe("[P2] backups don't collide across same-named projects", () => {
   it("two 'app' folders in different paths keep separate backups", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "pm-coll-"));
