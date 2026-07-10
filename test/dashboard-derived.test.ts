@@ -5,6 +5,7 @@ import * as os from "node:os";
 import { startDashboard, type DashboardHandle } from "../src/dashboard/server.js";
 import { brain } from "../src/state/files.js";
 import { readJsonOr } from "../src/util/fs-atomic.js";
+import { peekQueue } from "../src/recall/queue.js";
 import type { Rule } from "../src/guard/policy.js";
 
 /**
@@ -51,7 +52,7 @@ describe("[P1] dashboard mutations regenerate derived state", () => {
     });
     expect(res.status).toBe(200);
 
-    const queue = readJsonOr<string[]>(brain(root).queue, []);
-    expect(queue).toContain(".packmind/knowledge.md");
+    const queued = peekQueue(root).map((e) => e.path);
+    expect(queued).toContain(".packmind/knowledge.md");
   });
 });

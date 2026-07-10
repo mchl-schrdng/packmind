@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>A second brain for Claude Code.</strong><br />
-  Project memory, real token &amp; cost accounting, local semantic recall, and active guardrails - through lifecycle hooks and an MCP server. Zero workflow changes.
+  Project memory, estimated token &amp; cost activity, local semantic recall, and active guardrails - through lifecycle hooks and an MCP server. Zero workflow changes.
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@ exposes the project's memory as tools Claude can query directly.
 
 - **Project map** - every file gets a one-line description, a token estimate, and
   an estimated read cost, so Claude reads `map.md` instead of opening files blind.
-- **Real token &amp; cost accounting** - fast local estimates always, priced per
+- **Estimated token &amp; cost activity** - fast local estimates always, priced per
   model into a running **dollar total**. Exact reconciliation via Anthropic's
   count-tokens API is **opt-in** (`packmind scan --exact`), so nothing leaves your
   machine by default.

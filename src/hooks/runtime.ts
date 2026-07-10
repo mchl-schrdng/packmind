@@ -676,10 +676,31 @@ export function computePracticeReminders(session: Session, checks: SessionCheck[
 }
 
 // --- recall queue (zero-dep enqueue) ----------------------------------------
+// On-disk format is a `path -> generation` map; enqueue ALWAYS bumps the
+// generation so a re-enqueue during embedding survives the indexer's ack. A
+// legacy `string[]` queue migrates to generation 1. Mirrors recall/queue.ts;
+// the canonical drain there and this enqueue must agree on the format.
+function normalizeQueue(raw: unknown): Record<string, number> {
+  if (Array.isArray(raw)) {
+    const m: Record<string, number> = {};
+    for (const p of raw) if (typeof p === "string") m[p] = 1;
+    return m;
+  }
+  if (raw && typeof raw === "object") {
+    const m: Record<string, number> = {};
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === "number" && Number.isFinite(v)) m[k] = v;
+    }
+    return m;
+  }
+  return {};
+}
 export function enqueueRecall(relPath: string): void {
   // Atomic read-modify-write so two concurrent hook processes can't lose each
-  // other's enqueue. Mirrors recall/queue.ts.
-  updateJson<string[]>(brainPath("recall", "queue.json"), [], (q) =>
-    q.includes(relPath) ? q : [...q, relPath],
-  );
+  // other's enqueue.
+  updateJson<unknown>(brainPath("recall", "queue.json"), {}, (raw) => {
+    const m = normalizeQueue(raw);
+    m[relPath] = (m[relPath] ?? 0) + 1;
+    return m;
+  });
 }
