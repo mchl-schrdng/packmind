@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "packmind": {
+      "command": "packmind",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

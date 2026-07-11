@@ -22,6 +22,9 @@ export function brain(projectRoot: string) {
     compressDir: stateFile(projectRoot, "compress"),
     compressIndex: stateFile(projectRoot, "compress", "index.json"),
     hooksDir: stateFile(projectRoot, "hooks"),
+    sessionsDir: stateFile(projectRoot, "state", "sessions"),
+    changeBaselineDir: stateFile(projectRoot, "state", "change-baselines"),
+    changeSetDir: stateFile(projectRoot, "state", "change-sets"),
   };
 }
 
