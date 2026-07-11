@@ -65,6 +65,7 @@ const TOOLS = [
       properties: {
         check: { type: "string", description: "The check name to satisfy, e.g. tests-updated, workflow-reviewed, release-checked" },
         detail: { type: "string", description: "Optional note, e.g. why it does not apply" },
+        session_id: { type: "string", description: "Which session to attach to (the PackMind session id shown at SessionStart). Only needed when several sessions are active." },
       },
       required: ["check"],
     },
@@ -160,7 +161,7 @@ async function main(): Promise<void> {
         case "record_solution":
           return text(toolRecordSolution(ctx, { error: String(a.error ?? ""), cause: a.cause, fix: a.fix, file: a.file, tags: a.tags }));
         case "record_evidence":
-          return text(toolRecordEvidence(ctx, { check: String(a.check ?? ""), detail: a.detail }));
+          return text(toolRecordEvidence(ctx, { check: String(a.check ?? ""), detail: a.detail, session_id: a.session_id }));
         case "project_map":
           return text(toolProjectMap(ctx, a.filter));
         case "usage_report":

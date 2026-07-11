@@ -1,5 +1,4 @@
 import { stateFile } from "../util/paths.js";
-import { readJsonOr, writeJson } from "../util/fs-atomic.js";
 
 /** Resolve the standard brain-file paths for a project. */
 export function brain(projectRoot: string) {
@@ -36,8 +35,24 @@ export interface ReadRecord {
 }
 
 export interface SessionState {
+  /** Logical/incarnation id: the ledger row key (a generated uuid). */
   id: string;
   started: string;
+  /** Raw Claude session_id this record belongs to (or "" if keyed by transcript). */
+  sessionId?: string;
+  /** transcript_path fallback key, kept for debuggability. */
+  transcriptPath?: string;
+  /** Live status: active until a SessionEnd suspends or closes it. */
+  status?: "active" | "suspended";
+  /** Timestamp of the most recent hook event for this session. */
+  lastEventAt?: string;
+  /** First and most-recent SessionStart source (startup|resume|clear|compact). */
+  initialSource?: string;
+  lastSource?: string;
+  /** Model reported by SessionStart (when present); used for pricing. */
+  model?: string;
+  /** Working directory / worktree (project identity is implicit in the file path). */
+  cwd?: string;
   reads: Record<string, ReadRecord>;
   writes: Array<{ file: string; action: string; tokens: number; at: string }>;
   editCounts: Record<string, number>;
@@ -71,10 +86,3 @@ export function emptySession(id: string): SessionState {
   };
 }
 
-export function readSession(projectRoot: string): SessionState | null {
-  return readJsonOr<SessionState | null>(brain(projectRoot).session, null);
-}
-
-export function writeSession(projectRoot: string, s: SessionState): void {
-  writeJson(brain(projectRoot).session, s);
-}

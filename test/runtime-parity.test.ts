@@ -7,6 +7,7 @@ import * as policy from "../src/guard/policy.js";
 import * as pricing from "../src/cost/pricing.js";
 import * as ledger from "../src/cost/ledger.js";
 import * as rt from "../src/hooks/runtime.js";
+import * as sess from "../src/state/session.js";
 
 /**
  * The zero-dependency hook runtime mirrors several canonical modules. These
@@ -86,6 +87,33 @@ describe("hook runtime parity", () => {
     const b = policy.evaluateWrite({ version: 1, rules: [rule] }, input);
     expect(a.findings.length).toEqual(b.findings.length);
     expect(a.findings.length).toBe(1); // the space glob matches in both
+  });
+
+  it("applySessionStart matches (startup/resume/compact/clear + no-existing)", () => {
+    const input = { now: "2026-07-10T00:00:00.000Z", newIncarnationId: "inc-1", sessionId: "s1" };
+    const existing = { ...sess.freshRecord({ ...input, source: "startup", newIncarnationId: "inc-0" }), inputTokens: 7 };
+    for (const source of ["startup", "resume", "compact", "clear"]) {
+      const a = rt.applySessionStart(existing as any, { ...input, source });
+      const b = sess.applySessionStart(existing as any, { ...input, source });
+      expect(JSON.stringify(a)).toEqual(JSON.stringify(b));
+    }
+    expect(JSON.stringify(rt.applySessionStart(null, { ...input, source: "startup" })))
+      .toEqual(JSON.stringify(sess.applySessionStart(null, { ...input, source: "startup" })));
+  });
+
+  it("applySessionEnd / classifySessionEnd match", () => {
+    const rec = sess.freshRecord({ source: "startup", now: "t0", newIncarnationId: "inc-0", sessionId: "s1" });
+    for (const reason of ["resume", "clear", "logout", "prompt_input_exit", "other", ""]) {
+      expect(rt.classifySessionEnd(reason)).toEqual(sess.classifySessionEnd(reason));
+      expect(JSON.stringify(rt.applySessionEnd(rec as any, { reason, now: "t1" })))
+        .toEqual(JSON.stringify(sess.applySessionEnd(rec as any, { reason, now: "t1" })));
+    }
+  });
+
+  it("sessionRawKey matches", () => {
+    for (const input of [{ session_id: "a" }, { transcript_path: "/t" }, { session_id: " ", transcript_path: "/t" }, {}]) {
+      expect(rt.sessionRawKey(input)).toEqual(sess.sessionRawKey(input));
+    }
   });
 
   it("pricing (inputCost/outputCost) matches, including the unknown-model fallback and overrides", () => {

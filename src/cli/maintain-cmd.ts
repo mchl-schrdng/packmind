@@ -5,6 +5,9 @@ import { consolidateJournal } from "../state/maintain.js";
 import { buildIndex } from "../recall/indexer.js";
 import { LocalEmbedder } from "../recall/embedder.js";
 import { pruneSnapshots } from "../state/snapshot.js";
+import { pruneStaleSessions } from "../state/session.js";
+
+const STALE_SESSION_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * One-shot maintenance: refresh the map, rebuild the recall index, archive an
@@ -36,6 +39,9 @@ export async function runMaintain(opts: { quiet?: boolean; keepBackups?: string 
   const keep = opts.keepBackups ? parseInt(opts.keepBackups, 10) : 10;
   const pruned = pruneSnapshots(projectRoot, keep);
   if (pruned) say(chalk.cyan(`• backups pruned - ${pruned} removed (kept ${keep})`));
+
+  const staleSessions = pruneStaleSessions(projectRoot, STALE_SESSION_MS);
+  if (staleSessions) say(chalk.cyan(`• stale sessions pruned - ${staleSessions} removed`));
 
   say(chalk.green("✓ maintenance complete"));
 }

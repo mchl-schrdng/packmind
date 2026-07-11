@@ -3,8 +3,8 @@ import {
   requireState,
   projectRoot,
   confineToRoot,
-  readSession,
-  writeSession,
+  sessionRawKey,
+  updateSession,
   hookConfig,
   estimateTokens,
   inputCost,
@@ -37,20 +37,22 @@ async function main(): Promise<void> {
   const content = extractContent(input);
   if (!content) process.exit(0);
 
-  const session = readSession();
-  if (!session) process.exit(0);
-  const rec = session.reads[rel];
-  if (!rec) process.exit(0);
+  const rawKey = sessionRawKey(input);
+  if (!rawKey) process.exit(0);
 
   const cfg = hookConfig();
   const tokens = estimateTokens(content, filePath);
-  const cost = inputCost(cfg.model, tokens, cfg.prices);
-  // Account the delta vs. whatever we previously attributed to this read.
-  session.inputTokens += tokens - rec.tokens;
-  session.inputCost += cost - rec.cost;
-  rec.tokens = tokens;
-  rec.cost = cost;
-  writeSession(session);
+  updateSession(rawKey, (session) => {
+    const rec = session.reads[rel];
+    if (!rec) return; // no matching pre-read record; nothing to reconcile
+    const cost = inputCost(session.model ?? cfg.model, tokens, cfg.prices);
+    // Account the delta vs. whatever we previously attributed to this read.
+    session.inputTokens += tokens - rec.tokens;
+    session.inputCost += cost - rec.cost;
+    rec.tokens = tokens;
+    rec.cost = cost;
+    session.lastEventAt = new Date().toISOString();
+  });
 }
 
 main().catch(() => process.exit(0));

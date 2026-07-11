@@ -21,6 +21,7 @@ export interface UsageLedger {
   totals: UsageTotals;
   sessions: Array<{
     id: string;
+    sessionId?: string;
     started: string;
     ended: string;
     inputTokens: number;
@@ -31,12 +32,17 @@ export interface UsageLedger {
     writes: number;
     dedupedReads?: number;
     mapHits?: number;
+    model?: string;
+    initialSource?: string;
+    lastSource?: string;
+    status?: string;
+    cwd?: string;
   }>;
 }
 
 export function emptyLedger(model: string): UsageLedger {
   return {
-    version: 1,
+    version: 2,
     model,
     createdAt: new Date().toISOString(),
     totals: {
@@ -68,6 +74,7 @@ export function foldSessionIntoLedger(ledger: UsageLedger, s: SessionState, ende
   ledger.sessions = ledger.sessions ?? [];
   const row = {
     id: s.id,
+    sessionId: s.sessionId,
     started: s.started,
     ended: endedAt,
     inputTokens: s.inputTokens,
@@ -78,6 +85,11 @@ export function foldSessionIntoLedger(ledger: UsageLedger, s: SessionState, ende
     writes: s.writes.length,
     dedupedReads: s.dedupedReads,
     mapHits: s.mapHits,
+    model: s.model,
+    initialSource: s.initialSource,
+    lastSource: s.lastSource,
+    status: s.status,
+    cwd: s.cwd,
   };
   const t = ledger.totals;
   const apply = (r: typeof row, k: number): void => {

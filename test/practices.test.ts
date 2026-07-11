@@ -3,7 +3,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 import { resolvePractices, writeEffective, listPacks, type Pack } from "../src/guard/practices.js";
-import { brain, emptySession, writeSession, readSession } from "../src/state/files.js";
+import { brain } from "../src/state/files.js";
+import { updateSession, readSessionRecord } from "../src/state/session.js";
 import { DEFAULT_CONFIG, type Config } from "../src/state/schema.js";
 import { computePracticeReminders, newSession, type SessionCheck } from "../src/hooks/runtime.js";
 import { toolRecordEvidence, type ToolContext } from "../src/mcp/tools.js";
@@ -88,21 +89,38 @@ describe("practice packs", () => {
     expect(computePracticeReminders(s, checks)).toEqual(["add a test"]);
   });
 
-  it("record_evidence attaches evidence to the live session and quiets the check", () => {
+  it("record_evidence attaches evidence to the single active session and quiets the check", () => {
     // A live session that touched src/** but wrote no test.
-    const state = emptySession("s1");
-    state.writes = [{ file: "src/foo.ts", action: "Write", tokens: 1, at: "t" }];
-    writeSession(root, state);
+    updateSession(root, "raw1", (s) => {
+      s.status = "active";
+      s.sessionId = "s1";
+      s.writes = [{ file: "src/foo.ts", action: "Write", tokens: 1, at: "t" }];
+    });
 
     const ctx = { projectRoot: root } as ToolContext;
     const msg = toolRecordEvidence(ctx, { check: "tests-updated", detail: "doc-only" });
     expect(msg).toContain("tests-updated");
 
-    const after = readSession(root)!;
+    const after = readSessionRecord(root, "raw1")!;
     expect(after.evidence?.[0].check).toBe("tests-updated");
 
     const checks: SessionCheck[] = [{ id: "c1", message: "add a test", changedGlobs: ["src/**"], needsEvidence: "tests-updated" }];
     expect(computePracticeReminders(after as any, checks)).toEqual([]);
+  });
+
+  it("record_evidence errors on multiple active sessions unless a session_id is given", () => {
+    updateSession(root, "rawA", (s) => { s.status = "active"; });
+    updateSession(root, "rawB", (s) => { s.status = "active"; });
+    const ctx = { projectRoot: root } as ToolContext;
+
+    // Ambiguous: two live sessions, no id -> refuse and list them.
+    expect(toolRecordEvidence(ctx, { check: "tests-updated" })).toContain("Multiple active sessions");
+
+    // Routed by the incarnation id shown at SessionStart.
+    const idA = readSessionRecord(root, "rawA")!.id;
+    expect(toolRecordEvidence(ctx, { check: "tests-updated", session_id: idA })).toContain(idA);
+    expect(readSessionRecord(root, "rawA")!.evidence?.[0].check).toBe("tests-updated");
+    expect(readSessionRecord(root, "rawB")!.evidence ?? []).toHaveLength(0);
   });
 
   it("record_evidence with no active session records nothing", () => {
