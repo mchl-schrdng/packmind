@@ -106,6 +106,16 @@ export function reconcileInto(cs: ChangeSetV1, net: NetChange[], at: string): vo
   cs.reconcileRequested = false;
 }
 
+/**
+ * Project-relative paths to enqueue for recall given a change. Add/modify/delete
+ * enqueue the path itself (the indexer re-embeds if present, drops the source if
+ * absent); a rename enqueues both the old and new paths.
+ */
+export function recallPathsForChange(change: { kind: NetChange["kind"]; path: string; previousPath?: string }): string[] {
+  if (change.kind === "rename" && change.previousPath) return [change.previousPath, change.path];
+  return [change.path];
+}
+
 export function readChangeSet(root: string, incarnationId: string): ChangeSetV1 | null {
   return readJsonOr<ChangeSetV1 | null>(changeSetFile(root, incarnationId), null);
 }

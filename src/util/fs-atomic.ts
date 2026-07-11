@@ -96,6 +96,15 @@ export function writeText(target: string, data: string): void {
   withLock(target, () => writeAtomic(target, data));
 }
 
+/**
+ * Read-modify-write a text file atomically: the read and the write happen inside
+ * one lock, so a concurrent writer can't lose the update (the failure mode of a
+ * plain readTextOr + writeText pair, e.g. two hooks updating map.md).
+ */
+export function updateText(target: string, update: (current: string) => string): void {
+  withLock(target, () => writeAtomic(target, update(readTextOr(target, ""))));
+}
+
 export function appendLine(target: string, line: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   withLock(target, () => fs.appendFileSync(target, line, "utf8"));

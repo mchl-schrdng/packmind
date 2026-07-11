@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { emptyChangeSet, recordCandidate, reconcileInto } from "../src/change/store.js";
+import { emptyChangeSet, recordCandidate, reconcileInto, recallPathsForChange } from "../src/change/store.js";
 
 const cs = () => emptyChangeSet({ incarnationId: "inc1", root: "/p", baselineCreatedAt: "t0" });
 
@@ -35,5 +35,13 @@ describe("reconcileInto", () => {
     expect(c.changes["reverted.ts"]).toBeUndefined(); // dropped
     expect(c.lastReconciledAt).toBe("t3");
     expect(c.reconcileRequested).toBe(false);
+  });
+});
+
+describe("recallPathsForChange", () => {
+  it("enqueues the path itself for add/modify/delete, both paths for a rename", () => {
+    expect(recallPathsForChange({ kind: "add", path: "a.ts" })).toEqual(["a.ts"]);
+    expect(recallPathsForChange({ kind: "delete", path: "gone.ts" })).toEqual(["gone.ts"]);
+    expect(recallPathsForChange({ kind: "rename", path: "new.ts", previousPath: "old.ts" })).toEqual(["old.ts", "new.ts"]);
   });
 });

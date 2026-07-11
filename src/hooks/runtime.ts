@@ -98,6 +98,52 @@ export function readText(target: string, fallback = ""): string {
 export function writeText(target: string, data: string): void {
   withLock(target, () => atomic(target, data));
 }
+export function updateText(target: string, update: (current: string) => string): void {
+  withLock(target, () => atomic(target, update(readText(target, ""))));
+}
+/** Locked add/update of one map.md entry (mirror of state/map-mutations.ts).
+ * Returns the token estimate for the caller's journal line. */
+export function upsertMapEntry(rel: string, content: string, model: string, prices: PriceOverrides): number {
+  const dir = path.posix.dirname(rel);
+  const section = dir === "." ? "./" : dir + "/";
+  const file = path.posix.basename(rel);
+  const tokens = estimateTokens(content, rel);
+  updateText(brainPath("map.md"), (text) => {
+    const map = parseMap(text);
+    const entry: MapEntry = { file, description: describeLite(file, content), tokens, cost: inputCost(model, tokens, prices) };
+    if (!map.has(section)) map.set(section, []);
+    const list = map.get(section)!;
+    const idx = list.findIndex((e) => e.file === file);
+    if (idx >= 0) {
+      if (!entry.description && list[idx].description) entry.description = list[idx].description;
+      list[idx] = entry;
+    } else {
+      list.push(entry);
+    }
+    let count = 0;
+    for (const [, l] of map) count += l.length;
+    return serializeMap(map, { fileCount: count, updated: new Date().toISOString() });
+  });
+  return tokens;
+}
+/** Locked removal of one map.md entry (and its now-empty section). */
+export function removeMapEntry(rel: string): void {
+  const dir = path.posix.dirname(rel);
+  const section = dir === "." ? "./" : dir + "/";
+  const file = path.posix.basename(rel);
+  updateText(brainPath("map.md"), (text) => {
+    const map = parseMap(text);
+    const list = map.get(section);
+    if (list) {
+      const idx = list.findIndex((e) => e.file === file);
+      if (idx >= 0) list.splice(idx, 1);
+      if (list.length === 0) map.delete(section);
+    }
+    let count = 0;
+    for (const [, l] of map) count += l.length;
+    return serializeMap(map, { fileCount: count, updated: new Date().toISOString() });
+  });
+}
 export function appendLine(target: string, line: string): void {
   fs.mkdirSync(path.dirname(target), { recursive: true });
   withLock(target, () => fs.appendFileSync(target, line, "utf8"));
