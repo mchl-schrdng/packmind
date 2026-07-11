@@ -75,7 +75,7 @@ export function gitStatus(root: string): PorcelainStatus | null {
   try {
     const out = execFileSync(
       "git",
-      ["-C", root, "status", "--porcelain=v2", "--find-renames", "-z"],
+      ["-C", root, "status", "--porcelain=v2", "--find-renames", "--untracked-files=all", "-z"],
       { encoding: "utf8", timeout: 5000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] },
     );
     return parsePorcelainV2(out);

@@ -54,4 +54,46 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(baseline.kind).toBe("git");
     expect(baseline.version).toBe(1);
   });
+
+  it("Stop reconciles a Bash/external-created file (no Write hook) and syncs the map", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // External change: create a file as if Bash/a generator did it (no PostToolUse).
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "gen.ts"), "// generated\nexport const g = 1;\n");
+
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    const csName = jsonFiles(brain(dir).changeSetDir)[0];
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, csName), "utf8"));
+    expect(Object.keys(cs.changes)).toContain("src/gen.ts");
+    expect(cs.changes["src/gen.ts"].kind).toBe("add");
+    expect(cs.changes["src/gen.ts"].map).toBe("current");
+
+    // The map was synchronized to the externally-created file.
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("gen.ts");
+  });
+
+  it("Stop reconciles an external deletion and removes it from the map", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    // Put it on the map first (as if scanned), then delete it externally.
+    fs.writeFileSync(brain(dir).map, "# Project Map\n\n## ./\n\n- `doomed.ts` · ~2 tok\n");
+    fs.rmSync(path.join(dir, "doomed.ts"));
+
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["doomed.ts"].kind).toBe("delete");
+    expect(fs.readFileSync(brain(dir).map, "utf8")).not.toContain("doomed.ts");
+  });
 });

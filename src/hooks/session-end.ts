@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import {
   requireState,
+  projectRoot,
   brainPath,
   writeText,
   updateJson,
@@ -11,6 +12,8 @@ import {
   sessionFile,
   updateSession,
   classifySessionEnd,
+  reconcileAndSync,
+  changedPaths,
   foldSessionIntoLedger,
   emptyLedger,
   hookConfig,
@@ -27,6 +30,9 @@ async function main(): Promise<void> {
   if (!session) process.exit(0);
   const reason = typeof input.reason === "string" ? input.reason : "other";
 
+  // Final best-effort reconcile so the change set is accurate before finalizing.
+  const netPaths = changedPaths(reconcileAndSync(projectRoot(), session, cfg));
+
   // Fold FIRST (idempotent). The live file is only removed AFTER a successful
   // fold: if the ledger write throws, main().catch swallows it and the session
   // survives for a later fold. Never lose a session to a failed fold.
@@ -37,8 +43,11 @@ async function main(): Promise<void> {
 
   if (classifySessionEnd(reason) === "remove") {
     // Terminal end (not /clear): refresh the handoff before removing the file.
-    if (reason !== "clear" && (session.writes ?? []).length > 0) {
-      const recent = session.writes.slice(-12).map((w) => `- \`${w.file}\` (${w.action})`);
+    const recent =
+      netPaths.length > 0
+        ? netPaths.slice(-12).map((p) => `- \`${p}\``)
+        : session.writes.slice(-12).map((w) => `- \`${w.file}\` (${w.action})`);
+    if (reason !== "clear" && recent.length > 0) {
       writeText(
         brainPath("handoff.md"),
         [

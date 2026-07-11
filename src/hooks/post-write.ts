@@ -10,6 +10,8 @@ import {
   appendLine,
   sessionRawKey,
   updateSession,
+  readSessionFor,
+  recordChangeCandidate,
   hookConfig,
   parseMap,
   serializeMap,
@@ -100,6 +102,13 @@ async function main(): Promise<void> {
       session.lastEventAt = at;
       editCount = session.editCounts[rel];
     });
+
+    // Record an immediate change candidate; the Stop reconcile is authoritative
+    // and will correct the kind (add/modify/delete) from the filesystem.
+    const session = readSessionFor(rawKey);
+    if (session) {
+      recordChangeCandidate(root, session, { path: rel, kind: fs.existsSync(abs) ? "modify" : "delete" }, "post-tool", at);
+    }
   }
 
   if (editCount === 4) {

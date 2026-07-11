@@ -812,10 +812,12 @@ export interface SessionCheck {
  * returned array is non-empty. Reuses pathGlobRe against the same glob dialect
  * as evaluateWrite.
  */
-export function computePracticeReminders(session: Session, checks: SessionCheck[]): string[] {
+export function computePracticeReminders(session: Session, checks: SessionCheck[], changedFiles?: string[]): string[] {
   const out: string[] = [];
   const latched = session.notifiedPractice ?? (session.notifiedPractice = []);
-  const files = session.writes.map((w) => w.file);
+  // Prefer the canonical net change set (covers Bash/external/parallel changes);
+  // fall back to the session's direct writes when no change set is available.
+  const files = changedFiles ?? session.writes.map((w) => w.file);
   const evidence = session.evidence ?? [];
   const hit = (globs?: string[]): boolean =>
     !!globs && globs.some((g) => files.some((f) => pathGlobRe(g).test(f)));
@@ -967,7 +969,7 @@ export function isGitRepo(root: string): boolean {
 }
 export function gitStatus(root: string): PorcelainStatus | null {
   try {
-    const out = execFileSync("git", ["-C", root, "status", "--porcelain=v2", "--find-renames", "-z"], {
+    const out = execFileSync("git", ["-C", root, "status", "--porcelain=v2", "--find-renames", "--untracked-files=all", "-z"], {
       encoding: "utf8", timeout: 5000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"],
     });
     return parsePorcelainV2(out);
@@ -1123,4 +1125,89 @@ export function reconcileGitSession(root: string, baseline: BaselineV1, extraSec
   }
   const net = reconcileGit({ status: baseline.status ?? { changed: [], renames: [] }, hashes: baseline.hashes }, { status: current, hashes: overlap });
   return net.filter((c) => isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) && (!c.previousPath || isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs)));
+}
+
+function changeSetFallback(root: string, session: Session): ChangeSetV1 {
+  return emptyChangeSet({
+    incarnationId: session.id, sessionId: session.sessionId, root, cwd: session.cwd,
+    baselineCreatedAt: session.started,
+  });
+}
+/** Record an immediate single-path change candidate and flag a reconcile. */
+export function recordChangeCandidate(root: string, session: Session, change: NetChange, source: ChangeSource, at: string, tools?: string[]): void {
+  updateChangeSet(session.id, changeSetFallback(root, session), (cs) => {
+    recordCandidate(cs, change, source, at, tools);
+    cs.reconcileRequested = true;
+  });
+}
+/** Flag that a reconcile is needed (e.g. after a Bash/MCP batch). */
+export function requestReconcile(root: string, session: Session): void {
+  updateChangeSet(session.id, changeSetFallback(root, session), (cs) => {
+    cs.reconcileRequested = true;
+  });
+}
+/**
+ * Authoritative reconcile for git projects: diff the baseline, fold the net set
+ * into the change set, then apply map/recall for each change idempotently, and
+ * persist the per-change map/recall states. Returns the synced change set, or
+ * the current one unchanged for non-git/missing baselines (deferred to the CLI).
+ * Map/recall work runs OUTSIDE the change-set lock to avoid nested-lock deadlock.
+ */
+export function reconcileAndSync(root: string, session: Session, cfg: HookConfig): ChangeSetV1 | null {
+  const baseline = readBaseline(session.id);
+  if (!baseline || baseline.kind !== "git") return readChangeSet(session.id);
+  const net = reconcileGitSession(root, baseline, cfg.extraSecretGlobs, cfg.excludeDirs);
+  if (net === null) return readChangeSet(session.id);
+  const at = new Date().toISOString();
+
+  updateChangeSet(session.id, changeSetFallback(root, session), (cs) => reconcileInto(cs, net, at));
+
+  const states: Record<string, { map: string; recall: string }> = {};
+  for (const n of net) {
+    let map = "pending";
+    try {
+      if (n.kind === "delete") {
+        removeMapEntry(n.path);
+        map = "removed";
+      } else {
+        if (n.kind === "rename" && n.previousPath) removeMapEntry(n.previousPath);
+        const content = readText(path.join(root, n.path), "");
+        if (content) {
+          upsertMapEntry(n.path, content, cfg.model, cfg.prices);
+          map = "current";
+        }
+      }
+    } catch {
+      map = "failed";
+    }
+    let recall = "pending";
+    if (!cfg.recallEnabled) {
+      recall = "disabled";
+    } else {
+      try {
+        for (const p of recallPathsForChange(n)) enqueueRecall(p);
+        recall = n.kind === "delete" ? "removed" : "queued";
+      } catch {
+        recall = "failed";
+      }
+    }
+    states[n.path] = { map, recall };
+  }
+
+  let result: ChangeSetV1 | null = null;
+  updateChangeSet(session.id, changeSetFallback(root, session), (cs) => {
+    for (const [p, s] of Object.entries(states)) {
+      if (cs.changes[p]) {
+        cs.changes[p].map = s.map;
+        cs.changes[p].recall = s.recall;
+      }
+    }
+    result = cs;
+  });
+  return result;
+}
+/** Unique net changed paths (canonical for practice checks / handoff). */
+export function changedPaths(cs: ChangeSetV1 | null): string[] {
+  if (!cs) return [];
+  return Object.values(cs.changes).map((c) => c.path).sort();
 }
