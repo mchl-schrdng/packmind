@@ -10,6 +10,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
+import { execFileSync } from "node:child_process";
 
 // --- project + brain paths --------------------------------------------------
 export function projectRoot(): string {
@@ -425,6 +426,7 @@ function clip(s: string, max = 90): string {
 export interface HookConfig {
   model: string;
   extraSecretGlobs: string[];
+  excludeDirs: string[];
   blockSecrets: boolean;
   recallEnabled: boolean;
   leanMode: string;
@@ -435,6 +437,7 @@ export function hookConfig(): HookConfig {
   return {
     model: typeof raw?.model === "string" ? raw.model : "claude-opus-4-8",
     extraSecretGlobs: Array.isArray(raw?.map?.extraSecretGlobs) ? raw.map.extraSecretGlobs : [],
+    excludeDirs: Array.isArray(raw?.map?.excludeDirs) ? raw.map.excludeDirs : [],
     blockSecrets: raw?.guard?.blockSecrets === true,
     recallEnabled: raw?.recall?.enabled !== false,
     leanMode: typeof raw?.guard?.lean?.mode === "string" ? raw.guard.lean.mode : "lite",
@@ -855,4 +858,269 @@ export function enqueueRecall(relPath: string): void {
     m[relPath] = (m[relPath] ?? 0) + 1;
     return m;
   });
+}
+
+// --- change intelligence (mirror of src/change/*) ---------------------------
+// The PURE functions below (parsePorcelainV2, computeNetChanges, reconcileGit)
+// are byte-identical to their canonical twins and pinned by runtime-parity.
+export type ChangeKind = "add" | "modify" | "delete" | "rename";
+export type ChangeSource = "post-tool" | "file-changed" | "reconcile";
+export interface PorcelainEntry { path: string; xy: string; }
+export interface PorcelainStatus { changed: PorcelainEntry[]; renames: Array<{ from: string; to: string }>; }
+export interface Snapshot { hashes: Record<string, string>; renames?: Array<{ from: string; to: string }>; }
+export interface NetChange { path: string; kind: ChangeKind; previousPath?: string; }
+export interface GitBaseline { status: PorcelainStatus; hashes: Record<string, string>; }
+export interface GitCurrent { status: PorcelainStatus; hashes: Record<string, string>; }
+export interface ChangeRecordV1 {
+  path: string; kind: ChangeKind; previousPath?: string;
+  firstSeenAt: string; lastSeenAt: string; sources: ChangeSource[];
+  suspectedTools?: string[]; map: string; recall: string; error?: string;
+}
+export interface ChangeSetV1 {
+  version: 1; incarnationId: string; sessionId?: string; root: string; cwd?: string;
+  status: "active" | "suspended" | "finalized" | "degraded";
+  baselineCreatedAt: string; lastReconciledAt?: string; reconcileRequested: boolean;
+  degradedReason?: string; changes: Record<string, ChangeRecordV1>; checks: unknown[];
+}
+export interface BaselineV1 {
+  version: 1; incarnationId: string; sessionId?: string; root: string; cwd?: string;
+  createdAt: string; kind: "git" | "manifest"; status?: PorcelainStatus; hashes: Record<string, string>;
+}
+
+const CHANGE_BINARY_EXT = new Set([
+  ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".avif",
+  ".woff", ".woff2", ".ttf", ".eot", ".otf",
+  ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar", ".jar",
+  ".exe", ".dll", ".so", ".dylib", ".bin", ".wasm",
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+  ".mp3", ".mp4", ".avi", ".mov", ".webm", ".ogg", ".flac",
+  ".sqlite", ".db", ".lock",
+]);
+const CHANGE_MAX_SIZE = 1_048_576;
+const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 128) || "unknown";
+
+export function fingerprint(abs: string): string | null {
+  try {
+    return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
+  } catch {
+    return null;
+  }
+}
+export function isEligiblePath(root: string, rel: string, extraSecretGlobs: string[], excludeDirs: string[]): boolean {
+  if (!rel) return false;
+  const posix = rel.split(path.sep).join("/");
+  if (posix.startsWith("../") || posix === ".." || path.isAbsolute(posix)) return false;
+  if (posix === ".packmind" || posix.startsWith(".packmind/")) return false;
+  if (posix === ".git" || posix.startsWith(".git/")) return false;
+  const segments = posix.split("/");
+  const excluded = new Set(excludeDirs);
+  if (segments.slice(0, -1).some((s) => excluded.has(s))) return false;
+  const base = segments[segments.length - 1];
+  if (CHANGE_BINARY_EXT.has(path.extname(base).toLowerCase())) return false;
+  if (looksSecret(base, extraSecretGlobs, posix)) return false;
+  try {
+    const st = fs.statSync(path.join(root, rel));
+    if (st.isFile() && st.size > CHANGE_MAX_SIZE) return false;
+  } catch {
+    /* absent (a delete): still eligible */
+  }
+  return true;
+}
+
+export function parsePorcelainV2(zOutput: string): PorcelainStatus {
+  const fields = zOutput.split("\0");
+  const changed: PorcelainEntry[] = [];
+  const renames: Array<{ from: string; to: string }> = [];
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i];
+    if (!f) continue;
+    const type = f[0];
+    if (type === "1") {
+      const parts = f.split(" ");
+      const p = parts.slice(8).join(" ");
+      if (p) changed.push({ path: p, xy: parts[1] ?? "" });
+    } else if (type === "2") {
+      const parts = f.split(" ");
+      const to = parts.slice(9).join(" ");
+      const from = fields[++i] ?? "";
+      if (to && from) renames.push({ from, to });
+      else if (to) changed.push({ path: to, xy: parts[1] ?? "" });
+    } else if (type === "?") {
+      const p = f.slice(2);
+      if (p) changed.push({ path: p, xy: "??" });
+    } else if (type === "u") {
+      const parts = f.split(" ");
+      const p = parts.slice(10).join(" ");
+      if (p) changed.push({ path: p, xy: parts[1] ?? "" });
+    }
+  }
+  return { changed, renames };
+}
+export function isGitRepo(root: string): boolean {
+  try {
+    return execFileSync("git", ["-C", root, "rev-parse", "--is-inside-work-tree"], {
+      encoding: "utf8", timeout: 3000, stdio: ["ignore", "pipe", "ignore"],
+    }).trim() === "true";
+  } catch {
+    return false;
+  }
+}
+export function gitStatus(root: string): PorcelainStatus | null {
+  try {
+    const out = execFileSync("git", ["-C", root, "status", "--porcelain=v2", "--find-renames", "-z"], {
+      encoding: "utf8", timeout: 5000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"],
+    });
+    return parsePorcelainV2(out);
+  } catch {
+    return null;
+  }
+}
+
+export function computeNetChanges(baseline: Snapshot, current: Snapshot): NetChange[] {
+  const out: NetChange[] = [];
+  const handled = new Set<string>();
+  for (const { from, to } of current.renames ?? []) {
+    const fromInBaseline = baseline.hashes[from] !== undefined;
+    const toNow = current.hashes[to] !== undefined;
+    if (fromInBaseline && toNow) {
+      out.push({ path: to, kind: "rename", previousPath: from });
+      handled.add(from);
+      handled.add(to);
+    }
+  }
+  for (const [rel, hash] of Object.entries(current.hashes)) {
+    if (handled.has(rel)) continue;
+    const b = baseline.hashes[rel];
+    if (b === undefined) out.push({ path: rel, kind: "add" });
+    else if (b !== hash) out.push({ path: rel, kind: "modify" });
+  }
+  for (const rel of Object.keys(baseline.hashes)) {
+    if (handled.has(rel)) continue;
+    if (current.hashes[rel] === undefined) out.push({ path: rel, kind: "delete" });
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+function kindFromXy(xy: string): ChangeKind {
+  if (xy.includes("D")) return "delete";
+  if (xy === "??" || xy.includes("A")) return "add";
+  return "modify";
+}
+export function reconcileGit(baseline: GitBaseline, current: GitCurrent): NetChange[] {
+  const out: NetChange[] = [];
+  const handled = new Set<string>();
+  const baselinePaths = new Set<string>();
+  for (const e of baseline.status.changed) baselinePaths.add(e.path);
+  for (const r of baseline.status.renames) { baselinePaths.add(r.from); baselinePaths.add(r.to); }
+  const baselineRenames = new Set(baseline.status.renames.map((r) => `${r.from}\0${r.to}`));
+  for (const { from, to } of current.status.renames) {
+    if (baselineRenames.has(`${from}\0${to}`)) { handled.add(from); handled.add(to); continue; }
+    out.push({ path: to, kind: "rename", previousPath: from });
+    handled.add(from); handled.add(to);
+  }
+  for (const { path: rel, xy } of current.status.changed) {
+    if (handled.has(rel)) continue;
+    const wasDirty = baselinePaths.has(rel) || baseline.hashes[rel] !== undefined;
+    if (!wasDirty) { out.push({ path: rel, kind: kindFromXy(xy) }); continue; }
+    const baseHash = baseline.hashes[rel];
+    const curHash = current.hashes[rel];
+    if (baseHash !== undefined && curHash === undefined) out.push({ path: rel, kind: "delete" });
+    else if (baseHash !== undefined && curHash !== undefined && baseHash !== curHash) out.push({ path: rel, kind: "modify" });
+  }
+  return out.sort((a, b) => a.path.localeCompare(b.path));
+}
+export function recallPathsForChange(change: { kind: ChangeKind; path: string; previousPath?: string }): string[] {
+  if (change.kind === "rename" && change.previousPath) return [change.previousPath, change.path];
+  return [change.path];
+}
+
+// --- change-set + baseline store (mirror of src/change/{store,baseline}.ts) --
+function changeSetPath(incarnationId: string): string {
+  return brainPath("state", "change-sets", `${safeId(incarnationId)}.json`);
+}
+function baselinePath(incarnationId: string): string {
+  return brainPath("state", "change-baselines", `${safeId(incarnationId)}.json`);
+}
+export function emptyChangeSet(meta: { incarnationId: string; sessionId?: string; root: string; cwd?: string; baselineCreatedAt: string; degradedReason?: string }): ChangeSetV1 {
+  return {
+    version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root: meta.root, cwd: meta.cwd,
+    status: meta.degradedReason ? "degraded" : "active", baselineCreatedAt: meta.baselineCreatedAt,
+    reconcileRequested: false, degradedReason: meta.degradedReason, changes: {}, checks: [],
+  };
+}
+export function recordCandidate(cs: ChangeSetV1, change: NetChange, source: ChangeSource, at: string, suspectedTools?: string[]): void {
+  const existing = cs.changes[change.path];
+  if (existing) {
+    existing.kind = change.kind;
+    if (change.previousPath) existing.previousPath = change.previousPath;
+    existing.lastSeenAt = at;
+    if (!existing.sources.includes(source)) existing.sources.push(source);
+    if (suspectedTools?.length) existing.suspectedTools = Array.from(new Set([...(existing.suspectedTools ?? []), ...suspectedTools]));
+    existing.map = "pending";
+    existing.recall = "pending";
+  } else {
+    cs.changes[change.path] = {
+      path: change.path, kind: change.kind, previousPath: change.previousPath,
+      firstSeenAt: at, lastSeenAt: at, sources: [source],
+      suspectedTools: suspectedTools?.length ? suspectedTools : undefined, map: "pending", recall: "pending",
+    };
+  }
+}
+export function reconcileInto(cs: ChangeSetV1, net: NetChange[], at: string): void {
+  const present = new Set(net.map((n) => n.path));
+  for (const p of Object.keys(cs.changes)) if (!present.has(p)) delete cs.changes[p];
+  for (const n of net) {
+    const existing = cs.changes[n.path];
+    if (existing) {
+      const kindChanged = existing.kind !== n.kind || existing.previousPath !== n.previousPath;
+      existing.kind = n.kind; existing.previousPath = n.previousPath; existing.lastSeenAt = at;
+      if (!existing.sources.includes("reconcile")) existing.sources.push("reconcile");
+      if (kindChanged) { existing.map = "pending"; existing.recall = "pending"; }
+    } else {
+      cs.changes[n.path] = {
+        path: n.path, kind: n.kind, previousPath: n.previousPath,
+        firstSeenAt: at, lastSeenAt: at, sources: ["reconcile"], map: "pending", recall: "pending",
+      };
+    }
+  }
+  cs.lastReconciledAt = at;
+  cs.reconcileRequested = false;
+}
+export function readChangeSet(incarnationId: string): ChangeSetV1 | null {
+  return readJson<ChangeSetV1 | null>(changeSetPath(incarnationId), null);
+}
+export function updateChangeSet(incarnationId: string, fallback: ChangeSetV1, fn: (cs: ChangeSetV1) => void): void {
+  updateJson<ChangeSetV1>(changeSetPath(incarnationId), fallback, (cs) => { fn(cs); return cs; });
+}
+export function readBaseline(incarnationId: string): BaselineV1 | null {
+  return readJson<BaselineV1 | null>(baselinePath(incarnationId), null);
+}
+export function writeBaseline(b: BaselineV1): void {
+  writeJson(baselinePath(b.incarnationId), b);
+}
+/** Create a git baseline in-hook (non-git manifest baselines are made by the CLI). */
+export function createBaselineGit(root: string, meta: { incarnationId: string; sessionId?: string; cwd?: string }, extraSecretGlobs: string[], excludeDirs: string[]): BaselineV1 {
+  const status = gitStatus(root) ?? { changed: [], renames: [] };
+  const hashes: Record<string, string> = {};
+  const paths = new Set<string>();
+  for (const e of status.changed) paths.add(e.path);
+  for (const r of status.renames) { paths.add(r.from); paths.add(r.to); }
+  for (const rel of paths) {
+    if (!isEligiblePath(root, rel, extraSecretGlobs, excludeDirs)) continue;
+    const fp = fingerprint(path.join(root, rel));
+    if (fp) hashes[rel] = fp;
+  }
+  return { version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root, cwd: meta.cwd, createdAt: new Date().toISOString(), kind: "git", status, hashes };
+}
+/** Git-only reconcile in-hook: returns net changes filtered by eligibility, or
+ * null if the baseline isn't a git baseline (defer to the CLI for manifests). */
+export function reconcileGitSession(root: string, baseline: BaselineV1, extraSecretGlobs: string[], excludeDirs: string[]): NetChange[] | null {
+  if (baseline.kind !== "git") return null;
+  const current = gitStatus(root) ?? { changed: [], renames: [] };
+  const overlap: Record<string, string> = {};
+  for (const rel of Object.keys(baseline.hashes)) {
+    const fp = fingerprint(path.join(root, rel));
+    if (fp) overlap[rel] = fp;
+  }
+  const net = reconcileGit({ status: baseline.status ?? { changed: [], renames: [] }, hashes: baseline.hashes }, { status: current, hashes: overlap });
+  return net.filter((c) => isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) && (!c.previousPath || isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs)));
 }
