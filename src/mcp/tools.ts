@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import { brain, type SessionState } from "../state/files.js";
+import { activeSessions } from "../state/session.js";
 import { loadConfig, type Config } from "../state/schema.js";
 import { readJsonOr, writeJson, readTextOr, writeText, updateJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
@@ -25,27 +26,45 @@ export function makeContext(projectRoot: string): ToolContext {
 
 /**
  * Record evidence that a practice check has been satisfied (e.g. tests were run,
- * a workflow was reviewed). The entry is appended to the live session so the
- * matching session-level check stops nudging at Stop. Writes the SAME
- * .packmind/state/session.json the hooks use, via the same file lock, so a
- * concurrent hook write can't lose it.
+ * a workflow was reviewed). The entry is appended to the correct live session so
+ * the matching session-level check stops nudging at Stop.
+ *
+ * Sessions are per-session_id now, and the MCP server has no ambient session, so
+ * routing resolves: an explicit `session_id` -> that session; else the single
+ * active session; else (several active) an ambiguity error asking for an id. The
+ * write uses the same file lock the hooks use, so a concurrent hook write can't
+ * lose it.
  */
-export function toolRecordEvidence(ctx: ToolContext, args: { check: string; detail?: string }): string {
+export function toolRecordEvidence(
+  ctx: ToolContext,
+  args: { check: string; detail?: string; session_id?: string },
+): string {
   const check = String(args.check ?? "").trim();
   if (!check) return "Nothing to record (empty check).";
-  let recorded = false;
-  updateJson<SessionState | null>(brain(ctx.projectRoot).session, null, (s) => {
-    if (!s) return s; // no live session (nothing running); nothing to satisfy
+
+  const active = activeSessions(ctx.projectRoot);
+  let target: { file: string; record: SessionState } | undefined;
+  if (args.session_id) {
+    const id = String(args.session_id);
+    target = active.find((s) => s.record.id === id || s.record.sessionId === id);
+    if (!target) return `No active session matching "${id}" (nothing recorded).`;
+  } else if (active.length === 1) {
+    target = active[0];
+  } else if (active.length === 0) {
+    return "No active session to attach evidence to (recorded nothing).";
+  } else {
+    return `Multiple active sessions: ${active.map((s) => s.record.id).join(", ")}. Pass session_id to record_evidence to choose one.`;
+  }
+
+  updateJson<SessionState | null>(target.file, null, (s) => {
+    if (!s) return s;
     s.evidence = [
       ...(s.evidence ?? []),
       { check, detail: args.detail ? String(args.detail) : undefined, at: new Date().toISOString() },
     ];
-    recorded = true;
     return s;
   });
-  return recorded
-    ? `Evidence recorded for "${check}". The matching practice check will stay quiet this session.`
-    : `No active session to attach evidence to (recorded nothing).`;
+  return `Evidence recorded for "${check}" (session ${target.record.id}). The matching practice check will stay quiet this session.`;
 }
 
 export async function toolRecall(ctx: ToolContext, query: string): Promise<string> {

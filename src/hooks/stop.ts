@@ -5,11 +5,15 @@ import {
   updateJson,
   writeText,
   appendLine,
-  readSession,
-  writeSession,
+  parseInput,
+  readStdin,
+  sessionRawKey,
+  readSessionFor,
+  updateSession,
   computeStopReminders,
   computePracticeReminders,
   foldSessionIntoLedger,
+  emptyLedger,
   hookConfig,
   emitContext,
   type LedgerLike,
@@ -18,7 +22,10 @@ import {
 
 async function main(): Promise<void> {
   requireState();
-  const session = readSession();
+  const input = parseInput(await readStdin());
+  const rawKey = sessionRawKey(input);
+  if (!rawKey) process.exit(0);
+  const session = readSessionFor(rawKey);
   if (!session) process.exit(0);
 
   const reads = Object.keys(session.reads).length;
@@ -32,14 +39,7 @@ async function main(): Promise<void> {
   // new row each turn - otherwise every figure inflates quadratically. The
   // read-modify-write is locked so a concurrent writer can't lose the update.
   const endedAt = new Date().toISOString();
-  const emptyLedger = (): LedgerLike => ({
-    version: 1,
-    model: cfg.model,
-    createdAt: endedAt,
-    totals: { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, reads: 0, writes: 0, sessions: 0, dedupedReads: 0, mapHits: 0 },
-    sessions: [],
-  });
-  updateJson<LedgerLike>(brainPath("usage.json"), emptyLedger(), (ledger) => {
+  updateJson<LedgerLike>(brainPath("usage.json"), emptyLedger(cfg.model), (ledger) => {
     foldSessionIntoLedger(ledger, session, endedAt);
     return ledger;
   });
@@ -79,7 +79,17 @@ async function main(): Promise<void> {
     ...computeStopReminders(session),
     ...computePracticeReminders(session, effective.checks ?? []),
   ];
-  if (reminders.length) writeSession(session);
+  // Persist the reminder latches (mutated in-memory above) onto this session's
+  // own file, inside a lock, so a concurrent hook write isn't clobbered.
+  if (reminders.length) {
+    updateSession(rawKey, (s) => {
+      s.notifiedWrites = session.notifiedWrites;
+      s.notifiedEdits = session.notifiedEdits;
+      s.notifiedLean = session.notifiedLean;
+      s.notifiedCompress = session.notifiedCompress;
+      s.notifiedPractice = session.notifiedPractice;
+    });
+  }
   emitContext("Stop", reminders.join(" "));
 }
 

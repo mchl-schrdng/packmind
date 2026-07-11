@@ -8,9 +8,8 @@ import {
   readText,
   writeText,
   appendLine,
-  updateJson,
-  newSession,
-  type Session,
+  sessionRawKey,
+  updateSession,
   hookConfig,
   parseMap,
   serializeMap,
@@ -86,20 +85,22 @@ async function main(): Promise<void> {
 
   if (cfg.recallEnabled && content) enqueueRecall(rel);
 
-  // Locked read-modify-write so a concurrent hook (e.g. a parallel Read, or the
-  // MCP record_evidence tool) can't lose this update to the shared session file.
+  // Locked read-modify-write on this session's own file so a concurrent hook
+  // (a parallel Read, or the MCP record_evidence tool) can't lose the update.
+  const rawKey = sessionRawKey(input);
   const at = new Date().toISOString();
   let editCount = 0;
-  updateJson<Session | null>(brainPath("state", "session.json"), null, (prev) => {
-    const session = prev ?? newSession("s-adhoc");
-    delete session.reads[rel]; // a write invalidates the prior read-dedupe guard
-    session.writes.push({ file: rel, action, tokens, at });
-    session.editCounts[rel] = (session.editCounts[rel] ?? 0) + 1;
-    session.outputTokens += tokens;
-    session.outputCost += outputCost(cfg.model, tokens, cfg.prices);
-    editCount = session.editCounts[rel];
-    return session;
-  });
+  if (rawKey) {
+    updateSession(rawKey, (session) => {
+      delete session.reads[rel]; // a write invalidates the prior read-dedupe guard
+      session.writes.push({ file: rel, action, tokens, at });
+      session.editCounts[rel] = (session.editCounts[rel] ?? 0) + 1;
+      session.outputTokens += tokens;
+      session.outputCost += outputCost(session.model ?? cfg.model, tokens, cfg.prices);
+      session.lastEventAt = at;
+      editCount = session.editCounts[rel];
+    });
+  }
 
   if (editCount === 4) {
     emitContext(

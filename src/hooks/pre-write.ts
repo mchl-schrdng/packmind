@@ -5,19 +5,19 @@ import {
   confineToRoot,
   brainPath,
   readJson,
-  updateJson,
   hookConfig,
   evaluateWrite,
   parseNeverDo,
   readText,
   parseInput,
   readStdin,
-  readSession,
+  sessionRawKey,
+  readSessionFor,
+  updateSession,
   leanNudge,
   emitContext,
   emitDeny,
   type Rule,
-  type Session,
 } from "./runtime.js";
 
 function pendingContent(input: Record<string, any>): string {
@@ -97,17 +97,15 @@ async function main(): Promise<void> {
 
   // Lean-mode nudge: a reuse-first reminder at the moment code is about to land.
   // In "lite" it latches once per session, so persist the session when it fires.
-  const session = readSession();
-  if (session) {
+  const rawKey = sessionRawKey(input);
+  const session = rawKey ? readSessionFor(rawKey) : null;
+  if (session && rawKey) {
     const lean = leanNudge(cfg.leanMode, session);
     if (lean) notes.push(lean);
     // Persist only the latch, and inside a lock, so a parallel post-write's
     // token/write accounting isn't clobbered by this read-modify-write.
     if (cfg.leanMode === "lite" && session.notifiedLean) {
-      updateJson<Session | null>(brainPath("state", "session.json"), null, (prev) => {
-        if (prev) prev.notifiedLean = true;
-        return prev;
-      });
+      updateSession(rawKey, (s) => { s.notifiedLean = true; });
     }
   }
 

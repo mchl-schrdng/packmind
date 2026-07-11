@@ -14,7 +14,7 @@ import { seedBrainFiles } from "./seed.js";
 
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
 const HOOK_SCRIPTS = [
-  "runtime.js", "session-start.js", "prompt-submit.js", "pre-read.js",
+  "runtime.js", "session-start.js", "session-end.js", "prompt-submit.js", "pre-read.js",
   "post-read.js", "pre-write.js", "post-write.js", "stop.js",
 ];
 

@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { brain, emptySession, type SessionState } from "./files.js";
@@ -119,6 +120,61 @@ export function applySessionEnd(
 
 export function readSessionRecord(root: string, rawKey: string): SessionState | null {
   return readJsonOr<SessionState | null>(sessionFile(root, rawKey), null);
+}
+
+/**
+ * Currently-active sessions (status active), each with its on-disk file path.
+ * Used to route MCP mutations (record_evidence) to the right live session and to
+ * report the active count on the dashboard.
+ */
+export function activeSessions(root: string): Array<{ file: string; record: SessionState }> {
+  const dir = path.join(brain(root).dir, "state", "sessions");
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const out: Array<{ file: string; record: SessionState }> = [];
+  for (const n of names) {
+    const file = path.join(dir, n);
+    const record = readJsonOr<SessionState | null>(file, null);
+    if (record && record.status === "active") out.push({ file, record });
+  }
+  return out;
+}
+
+/**
+ * Prune stale session files: only NON-active records older than `maxAgeMs` (by
+ * lastEventAt). Live (status active) sessions are never touched - pruning by age
+ * belongs in `maintain`, not SessionStart, to avoid the lock-sweep class of bug.
+ * Returns how many were removed.
+ */
+export function pruneStaleSessions(root: string, maxAgeMs: number): number {
+  const dir = path.join(brain(root).dir, "state", "sessions");
+  let names: string[];
+  try {
+    names = fs.readdirSync(dir).filter((n) => n.endsWith(".json"));
+  } catch {
+    return 0;
+  }
+  const now = Date.now();
+  let removed = 0;
+  for (const n of names) {
+    const file = path.join(dir, n);
+    const rec = readJsonOr<SessionState | null>(file, null);
+    if (!rec || rec.status === "active") continue;
+    const last = rec.lastEventAt ? Date.parse(rec.lastEventAt) : 0;
+    if (now - (Number.isFinite(last) ? last : 0) > maxAgeMs) {
+      try {
+        fs.rmSync(file, { force: true });
+        removed++;
+      } catch {
+        /* best effort */
+      }
+    }
+  }
+  return removed;
 }
 
 /** Locked read-modify-write for one session's file (no lost updates). */

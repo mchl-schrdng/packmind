@@ -594,6 +594,7 @@ export function updateSession(rawKey: string, fn: (s: Session) => void): void {
 // --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------
 interface LedgerRow {
   id: string;
+  sessionId?: string;
   started: string;
   ended: string;
   inputTokens: number;
@@ -604,6 +605,18 @@ interface LedgerRow {
   writes: number;
   dedupedReads?: number;
   mapHits?: number;
+  model?: string;
+  initialSource?: string;
+  lastSource?: string;
+  status?: string;
+  cwd?: string;
+}
+export function emptyLedger(model: string): LedgerLike {
+  return {
+    version: 2, model, createdAt: new Date().toISOString(),
+    totals: { inputTokens: 0, outputTokens: 0, inputCost: 0, outputCost: 0, reads: 0, writes: 0, sessions: 0, dedupedReads: 0, mapHits: 0 },
+    sessions: [],
+  };
 }
 export interface LedgerLike {
   version?: number;
@@ -635,6 +648,7 @@ export function foldSessionIntoLedger(ledger: LedgerLike, s: Session, endedAt: s
   ledger.sessions = ledger.sessions ?? [];
   const row: LedgerRow = {
     id: s.id,
+    sessionId: s.sessionId,
     started: s.started,
     ended: endedAt,
     inputTokens: s.inputTokens,
@@ -645,6 +659,11 @@ export function foldSessionIntoLedger(ledger: LedgerLike, s: Session, endedAt: s
     writes: s.writes.length,
     dedupedReads: s.dedupedReads,
     mapHits: s.mapHits,
+    model: s.model,
+    initialSource: s.initialSource,
+    lastSource: s.lastSource,
+    status: s.status,
+    cwd: s.cwd,
   };
   const t = ledger.totals;
   const apply = (r: LedgerRow, k: number): void => {

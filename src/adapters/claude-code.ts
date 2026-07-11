@@ -49,6 +49,7 @@ export function buildHookMap(): HookMap {
       group("Write|Edit|MultiEdit", "post-write.js", 10),
     ],
     Stop: [group("", "stop.js", 10)],
+    SessionEnd: [group("", "session-end.js", 10)],
   };
 }
 

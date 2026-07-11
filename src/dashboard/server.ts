@@ -3,6 +3,7 @@ import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import { URL } from "node:url";
 import { brain } from "../state/files.js";
+import { activeSessions } from "../state/session.js";
 import { loadConfig, type Config } from "../state/schema.js";
 import { readTextOr, readJsonOr, writeJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
@@ -82,6 +83,7 @@ function overview(ctx: Ctx) {
     model: ledger.model,
     files,
     vectors,
+    activeSessions: activeSessions(ctx.projectRoot).length,
     totals: ledger.totals,
     cost: totalCost(ledger),
     sessions: ledger.sessions.slice(-30),
