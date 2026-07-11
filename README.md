@@ -159,6 +159,7 @@ Run any command inside a project (a directory with `.packmind/`). `packmind
 |---------|--------------|
 | `packmind init` | Create `.packmind/` (config + seed brain files + hooks), register the lifecycle hooks in `.claude/settings.json`, register the MCP server in `.mcp.json`, wire a snippet into `CLAUDE.md`, resolve the effective guard set, and run an initial map scan. Idempotent - safe to re-run. |
 | `packmind update [--dry-run] [--list] [--project <name>]` | Update every registered project to the current PackMind version: snapshot first, re-copy the hooks, re-register, and refresh the effective guard set, all while preserving `config.json`. `--dry-run` shows what would change; `--list` lists registered projects; `--project` limits to one. |
+| `packmind upgrade [--check]` | Upgrade PackMind **itself** to the latest published version: detect the package manager (npm/pnpm/yarn), install `packmind@latest`, then refresh registered projects via `packmind update`. `--check` only reports whether a newer version exists and prints the command to run. (Note: `update` refreshes projects; `upgrade` bumps the installed package.) |
 | `packmind doctor` | Diagnose registered projects, hook installation, and MCP registration; report what is installed, stale, or missing. |
 | `packmind mcp` | Run the MCP server over stdio. Claude Code invokes this for you - you rarely run it by hand. |
 

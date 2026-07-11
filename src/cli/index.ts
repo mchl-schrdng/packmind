@@ -10,6 +10,7 @@ import { runPolicyCheck } from "./policy-cmd.js";
 import { runPracticeList, runPracticeAdd, runPracticeRemove, runPracticeExplain } from "./practice-cmd.js";
 import { runDoctor } from "./doctor.js";
 import { runUpdate } from "./update.js";
+import { runUpgrade } from "./upgrade-cmd.js";
 import { runMcp } from "./mcp-cmd.js";
 import { runDashboard } from "./dashboard-cmd.js";
 import { runInsights } from "./insights-cmd.js";
@@ -79,6 +80,12 @@ export function createProgram(): Command {
     .option("--list", "List registered projects")
     .option("--project <name>", "Only the matching project")
     .action((o) => runUpdate(o));
+
+  program
+    .command("upgrade")
+    .description("Upgrade PackMind itself to the latest published version")
+    .option("--check", "Only report whether a newer version exists (no changes)")
+    .action((o) => runUpgrade(o));
 
   program.command("doctor").description("Diagnose projects, hooks, and MCP registration").action(runDoctor);
 
