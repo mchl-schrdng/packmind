@@ -1,5 +1,4 @@
 import { stateFile } from "../util/paths.js";
-import { readJsonOr, writeJson } from "../util/fs-atomic.js";
 
 /** Resolve the standard brain-file paths for a project. */
 export function brain(projectRoot: string) {
@@ -87,10 +86,3 @@ export function emptySession(id: string): SessionState {
   };
 }
 
-export function readSession(projectRoot: string): SessionState | null {
-  return readJsonOr<SessionState | null>(brain(projectRoot).session, null);
-}
-
-export function writeSession(projectRoot: string, s: SessionState): void {
-  writeJson(brain(projectRoot).session, s);
-}

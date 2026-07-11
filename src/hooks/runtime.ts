@@ -498,13 +498,6 @@ export function newSession(id: string): Session {
     dedupedReads: 0,
   };
 }
-export function readSession(): Session | null {
-  return readJson<Session | null>(brainPath("state", "session.json"), null);
-}
-export function writeSession(s: Session): void {
-  writeJson(brainPath("state", "session.json"), s);
-}
-
 // --- per-session lifecycle (mirror of state/session.ts) ---------------------
 const REMOVE_REASONS = new Set([
   "clear", "logout", "prompt_input_exit", "bypass_permissions_disabled", "other",

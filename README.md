@@ -53,6 +53,10 @@ exposes the project's memory as tools Claude can query directly.
 - **Reversible compression** - shelve a large non-source output (log, JSON, command dump)
   with `compress(...)` and pull the exact original back with `retrieve(hash)`, to keep the
   session's context lean.
+- **Session-aware** - accounting and reminders are keyed to Claude's real session id, so
+  concurrent sessions and worktrees are tracked separately (no shared global file). Resume
+  and compaction continue a session, `/clear` starts a fresh one, and each closes into its
+  own usage-ledger row on `SessionEnd`.
 
 ## Quick start
 
@@ -74,7 +78,7 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `recall(query)` | Semantic search across knowledge, journal, solutions, and source |
 | `remember(note, kind)` | Save a preference, decision, never-do rule, or note |
 | `record_solution(error, cause, fix, tags)` | Log a fix so it's never rediscovered |
-| `record_evidence(check, detail?)` | Mark a practice check satisfied this session so its nudge stays quiet |
+| `record_evidence(check, detail?, session_id?)` | Mark a practice check satisfied this session so its nudge stays quiet (pass `session_id`, shown at SessionStart, when several sessions are active) |
 | `project_map(filter?)` | List files with descriptions and token estimates |
 | `usage_report()` | Token usage and dollar cost for the project |
 | `insights()` | Savings, map coverage, heaviest files, and upkeep notes |
