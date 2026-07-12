@@ -427,6 +427,7 @@ export interface HookConfig {
   model: string;
   extraSecretGlobs: string[];
   excludeDirs: string[];
+  maxFiles: number;
   blockSecrets: boolean;
   recallEnabled: boolean;
   leanMode: string;
@@ -438,6 +439,7 @@ export function hookConfig(): HookConfig {
     model: typeof raw?.model === "string" ? raw.model : "claude-opus-4-8",
     extraSecretGlobs: Array.isArray(raw?.map?.extraSecretGlobs) ? raw.map.extraSecretGlobs : [],
     excludeDirs: Array.isArray(raw?.map?.excludeDirs) ? raw.map.excludeDirs : [],
+    maxFiles: typeof raw?.map?.maxFiles === "number" ? raw.map.maxFiles : 4000,
     blockSecrets: raw?.guard?.blockSecrets === true,
     recallEnabled: raw?.recall?.enabled !== false,
     leanMode: typeof raw?.guard?.lean?.mode === "string" ? raw.guard.lean.mode : "lite",
@@ -1115,6 +1117,43 @@ export function createBaselineGit(root: string, meta: { incarnationId: string; s
     if (fp) hashes[rel] = fp;
   }
   return { version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root, cwd: meta.cwd, createdAt: new Date().toISOString(), kind: "git", status, hashes };
+}
+/** Bounded zero-dep eligible-file walk (mirror of change/eligible.ts eligibleWalk). */
+export function eligibleWalk(root: string, extraSecretGlobs: string[], excludeDirs: string[], maxFiles: number): string[] {
+  const max = maxFiles || 4000;
+  const excluded = new Set(excludeDirs);
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    if (out.length >= max) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= max) return;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === ".git" || e.name === ".packmind" || excluded.has(e.name)) continue;
+        walk(abs);
+      } else if (e.isFile()) {
+        const rel = path.relative(root, abs).split(path.sep).join("/");
+        if (isEligiblePath(root, rel, extraSecretGlobs, excludeDirs)) out.push(rel);
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+/** Create a non-git manifest baseline in-hook (bounded eligible-file fingerprints). */
+export function createBaselineManifest(root: string, meta: { incarnationId: string; sessionId?: string; cwd?: string }, extraSecretGlobs: string[], excludeDirs: string[], maxFiles: number): BaselineV1 {
+  const hashes: Record<string, string> = {};
+  for (const rel of eligibleWalk(root, extraSecretGlobs, excludeDirs, maxFiles)) {
+    const fp = fingerprint(path.join(root, rel));
+    if (fp) hashes[rel] = fp;
+  }
+  return { version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root, cwd: meta.cwd, createdAt: new Date().toISOString(), kind: "manifest", hashes };
 }
 /** Git-only reconcile in-hook: returns net changes filtered by eligibility, or
  * null if the baseline isn't a git baseline (defer to the CLI for manifests). */

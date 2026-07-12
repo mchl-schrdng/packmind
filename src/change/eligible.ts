@@ -46,6 +46,40 @@ export function isEligiblePath(root: string, rel: string, config: Config): boole
   return true;
 }
 
+/**
+ * Bounded, zero-dependency walk of eligible files (recursive fs, no gitignore -
+ * used for non-git baselines/reconcile where the hook can't run walkProject).
+ * Skips `.git`/`.packmind`/excluded dirs and never follows symlinks (Dirent
+ * reports the link, not its target), so out-of-root escapes are impossible.
+ */
+export function eligibleWalk(root: string, config: Config): string[] {
+  const max = config.map.maxFiles || 4000;
+  const excluded = new Set(config.map.excludeDirs);
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    if (out.length >= max) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= max) return;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === ".git" || e.name === ".packmind" || excluded.has(e.name)) continue;
+        walk(abs); // symlinked dirs report isDirectory() === false, so are skipped
+      } else if (e.isFile()) {
+        const rel = path.relative(root, abs).split(path.sep).join("/");
+        if (isEligiblePath(root, rel, config)) out.push(rel);
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+
 /** Content fingerprint of a file, or null if it can't be read (e.g. deleted). */
 export function fingerprint(abs: string): string | null {
   try {

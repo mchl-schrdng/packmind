@@ -124,9 +124,10 @@ make updates appear quickly, and reconciliation establishes correctness.
 - **Git projects** reconcile in-process at the end of each turn, so Bash, generator,
   parallel-batch, and external-editor changes are reflected in the net change set,
   the map, recall, and practice checks - not just direct `Write`/`Edit` calls.
-- **Non-git projects** record direct edits immediately and reconcile fully via a
-  file-fingerprint manifest when you run `packmind changes`, `packmind reconcile`,
-  or `packmind maintain`.
+- **Non-git projects** capture a bounded file-fingerprint baseline at session start
+  and reconcile fully via that manifest when you run `packmind reconcile` or
+  `packmind maintain`. (`packmind changes` is read-only - it displays the last
+  reconciled set without recomputing.)
 - Only **eligible** files are tracked - the same gitignore, secret, binary, size,
   and `map.maxFiles` rules as the project map. Ignored, secret, binary, oversized,
   and out-of-root files never enter the change set.

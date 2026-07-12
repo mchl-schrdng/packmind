@@ -19,6 +19,7 @@ import {
   hookConfig,
   isGitRepo,
   createBaselineGit,
+  createBaselineManifest,
   writeBaseline,
   emptyChangeSet,
   updateChangeSet,
@@ -80,14 +81,15 @@ async function main(): Promise<void> {
     // reconciler has something to diff against. Git only in-hook; non-git manifest
     // baselines are created lazily by the CLI/MCP. Fail open on any error.
     const isNewIncarnation = !existing || existing.id !== record.id;
-    if (isNewIncarnation && isGitRepo(projectRoot())) {
+    if (isNewIncarnation) {
       try {
-        const baseline = createBaselineGit(
-          projectRoot(),
-          { incarnationId: record.id, sessionId: record.sessionId, cwd },
-          cfg.extraSecretGlobs,
-          cfg.excludeDirs,
-        );
+        const r = projectRoot();
+        const meta = { incarnationId: record.id, sessionId: record.sessionId, cwd };
+        // Git projects reconcile in-hook; non-git get a bounded manifest baseline
+        // captured NOW (before changes) so the CLI/maintain reconcile is correct.
+        const baseline = isGitRepo(r)
+          ? createBaselineGit(r, meta, cfg.extraSecretGlobs, cfg.excludeDirs)
+          : createBaselineManifest(r, meta, cfg.extraSecretGlobs, cfg.excludeDirs, cfg.maxFiles);
         writeBaseline(baseline);
         updateChangeSet(
           record.id,
