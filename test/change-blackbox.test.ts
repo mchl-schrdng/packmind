@@ -215,6 +215,21 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(wp.some((p) => p.endsWith(`${path.sep}a.ts`))).toBe(true); // clean repo still watches tracked files
   });
 
+  it("FileChanged records an eligible watched change and ignores an ineligible one", () => {
+    const { dir, hooksDir } = gitProject();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "x.ts"), "export const x = 1;\n");
+    fs.writeFileSync(path.join(dir, "credentials.txt"), "secret");
+
+    run(hooksDir, "file-changed.js", { session_id: "S1", file_path: "src/x.ts", event: "add" }, dir);
+    run(hooksDir, "file-changed.js", { session_id: "S1", file_path: "credentials.txt", event: "add" }, dir);
+
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["src/x.ts"]?.sources).toContain("file-changed");
+    expect(cs.changes["credentials.txt"]).toBeUndefined(); // ineligible ignored
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");
