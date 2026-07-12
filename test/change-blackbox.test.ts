@@ -79,6 +79,26 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("gen.ts");
   });
 
+  it("reverting a change across two Stops leaves the map clean (no stale entry)", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // Add then Stop: mapped.
+    fs.writeFileSync(path.join(dir, "temporary.ts"), "export const t = 1;\n");
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("temporary.ts");
+
+    // Revert (delete) then Stop: gone from change set AND map.
+    fs.rmSync(path.join(dir, "temporary.ts"));
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["temporary.ts"]).toBeUndefined();
+    expect(fs.readFileSync(brain(dir).map, "utf8")).not.toContain("temporary.ts");
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

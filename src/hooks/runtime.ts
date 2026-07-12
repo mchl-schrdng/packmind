@@ -1163,6 +1163,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   if (net === null) return readChangeSet(session.id);
   const at = new Date().toISOString();
 
+  const before = readChangeSet(session.id);
+  const oldPaths = before ? Object.keys(before.changes) : [];
+
   updateChangeSet(session.id, changeSetFallback(root, session), (cs) => reconcileInto(cs, net, at));
 
   const states: Record<string, { map: string; recall: string }> = {};
@@ -1195,6 +1198,27 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
       }
     }
     states[n.path] = { map, recall };
+  }
+
+  // Repair paths that LEFT the net (reverted to baseline): sync map/recall to the
+  // current filesystem state so an add-then-delete doesn't leave a stale map
+  // entry and a delete-then-restore doesn't leave the entry removed.
+  const netPaths = new Set(net.map((n) => n.path));
+  for (const p of oldPaths) {
+    if (netPaths.has(p)) continue;
+    try {
+      if (fs.existsSync(path.join(root, p))) upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
+      else removeMapEntry(p);
+    } catch {
+      /* best effort */
+    }
+    if (cfg.recallEnabled) {
+      try {
+        enqueueRecall(p);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   let result: ChangeSetV1 | null = null;
