@@ -63,6 +63,23 @@ describe("[P1] reconcileSession (non-git manifest)", () => {
     expect(kinds(dir, baseline)).toEqual(["add c.ts", "delete b.ts", "modify a.ts"]);
   });
 
+  it("never includes secret, binary, or excluded-dir files (git)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rssec-"));
+    gitInit(dir);
+    write(dir, "src/ok.ts", "A");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "init"]);
+
+    const baseline = createBaseline(dir, config, { incarnationId: "inc1" });
+
+    write(dir, "src/ok.ts", "A2"); // eligible modify
+    write(dir, ".env", "SECRET=1"); // secret
+    write(dir, "logo.png", "PNGDATA"); // binary
+    write(dir, "node_modules/x.js", "junk"); // excluded dir
+
+    expect(kinds(dir, baseline)).toEqual(["modify src/ok.ts"]);
+  });
+
   it("a file restored to baseline content is not a net change", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rsm2-"));
     write(dir, "a.ts", "A");
