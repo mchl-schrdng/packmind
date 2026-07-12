@@ -17,6 +17,7 @@ import { runInsights } from "./insights-cmd.js";
 import { runMaintain } from "./maintain-cmd.js";
 import { runBackup, runRestore } from "./backup-cmd.js";
 import { runDebt } from "./debt-cmd.js";
+import { runChanges, runReconcile } from "./changes-cmd.js";
 
 export function createProgram(): Command {
   const program = new Command();
@@ -63,6 +64,19 @@ export function createProgram(): Command {
   program.command("solutions <term>").description("Search recorded bug solutions").action((t) => runSolutions(t));
 
   program.command("debt").description("List `packmind:` deferred-shortcut markers (lean-mode debt ledger)").action(runDebt);
+
+  program
+    .command("changes")
+    .description("Show the current session's net change set (add/modify/delete/rename)")
+    .option("--session <id>", "Which session (required when several are active)")
+    .option("--json", "Output the raw ChangeSetV1 JSON")
+    .action((o) => runChanges(o));
+  program
+    .command("reconcile")
+    .description("Force a full change reconciliation and sync map + recall")
+    .option("--session <id>", "Which session (required when several are active)")
+    .option("--json", "Output the raw ChangeSetV1 JSON")
+    .action((o) => runReconcile(o));
 
   const policy = program.command("policy").description("Guardrail policy");
   policy.command("check").description("Lint policy.json").action(runPolicyCheck);
