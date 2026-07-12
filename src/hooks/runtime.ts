@@ -1228,9 +1228,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
         map = "removed";
       } else {
         if (n.kind === "rename" && n.previousPath) removeMapEntry(n.previousPath);
-        const content = readText(path.join(root, n.path), "");
-        if (content) {
-          upsertMapEntry(n.path, content, cfg.model, cfg.prices);
+        const abs = path.join(root, n.path);
+        if (fs.existsSync(abs)) {
+          upsertMapEntry(n.path, readText(abs, ""), cfg.model, cfg.prices); // map even empty files
           map = "current";
         }
       }

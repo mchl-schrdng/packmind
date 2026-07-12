@@ -92,9 +92,9 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
         map = "removed";
       } else {
         if (n.kind === "rename" && n.previousPath) removeMapEntry(root, n.previousPath);
-        const content = readTextOr(path.join(root, n.path), "");
-        if (content) {
-          upsertMapEntry(root, n.path, content, config);
+        const abs = path.join(root, n.path);
+        if (fs.existsSync(abs)) {
+          upsertMapEntry(root, n.path, readTextOr(abs, ""), config); // map even empty files
           map = "current";
         }
       }

@@ -134,6 +134,31 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(cs.status).not.toBe("degraded"); // baseline existed -> not degraded
   });
 
+  it("a direct write to an ineligible file (binary) never enters map/change set", () => {
+    const { dir, hooksDir } = gitProject();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.writeFileSync(path.join(dir, "logo.png"), "PNGDATA");
+    // Simulate the PostToolUse hook for that write.
+    run(hooksDir, "post-write.js", { tool_name: "Write", tool_input: { file_path: "logo.png", content: "PNGDATA" }, session_id: "S1" }, dir);
+    let map = "";
+    try { map = fs.readFileSync(brain(dir).map, "utf8"); } catch { /* no map written */ }
+    expect(map).not.toContain("logo.png");
+  });
+
+  it("an empty eligible file is still mapped by reconcile", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.writeFileSync(path.join(dir, "empty.ts"), ""); // empty but eligible
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["empty.ts"].kind).toBe("add");
+    expect(cs.changes["empty.ts"].map).toBe("current");
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("empty.ts");
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

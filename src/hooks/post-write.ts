@@ -13,7 +13,7 @@ import {
   hookConfig,
   upsertMapEntry,
   outputCost,
-  looksSecret,
+  isEligiblePath,
   enqueueRecall,
   parseInput,
   readStdin,
@@ -32,8 +32,9 @@ async function main(): Promise<void> {
   if (confineToRoot(root, filePath) === null) process.exit(0);
   const abs = path.resolve(root, filePath);
   const rel = path.relative(root, abs).split(path.sep).join("/");
-  if (rel.startsWith(".packmind/")) process.exit(0);
-  if (looksSecret(filePath, cfg.extraSecretGlobs, rel)) process.exit(0);
+  // Full eligibility (secret + binary + excluded dir + size + symlink + .packmind),
+  // so a direct write to an ineligible file never pollutes map/recall/change set.
+  if (!isEligiblePath(root, rel, cfg.extraSecretGlobs, cfg.excludeDirs)) process.exit(0);
 
   let content = "";
   try {
