@@ -74,6 +74,10 @@ exposes the project's memory as tools Claude can query directly.
   concurrent sessions and worktrees are tracked separately (no shared global file). Resume
   and compaction continue a session, `/clear` starts a fresh one, and each closes into its
   own usage-ledger row on `SessionEnd`.
+- **Live change intelligence** - PackMind tracks the net set of files changed during a
+  session (add / modify / delete / rename) from ANY source - Write/Edit, Bash, generators,
+  parallel tool batches, or external editors - and keeps the map, recall, and practice checks
+  in sync with it. Inspect it with `packmind changes` or the `changes` MCP tool.
 
 ## Install and quick start
 
@@ -112,6 +116,25 @@ Nothing runs as a daemon and nothing opens a network port except the opt-in
 `packmind dashboard` (loopback only). The CLI is how you inspect and maintain the
 brain from the terminal.
 
+### Change-tracking coverage
+
+Live change intelligence is event-assisted and reconciliation-backed: hook events
+make updates appear quickly, and reconciliation establishes correctness.
+
+- **Git projects** reconcile in-process at the end of each turn, so Bash, generator,
+  parallel-batch, and external-editor changes are reflected in the net change set,
+  the map, recall, and practice checks - not just direct `Write`/`Edit` calls.
+- **Non-git projects** record direct edits immediately and reconcile fully via a
+  file-fingerprint manifest when you run `packmind changes`, `packmind reconcile`,
+  or `packmind maintain`.
+- Only **eligible** files are tracked - the same gitignore, secret, binary, size,
+  and `map.maxFiles` rules as the project map. Ignored, secret, binary, oversized,
+  and out-of-root files never enter the change set.
+- External-edit watching (`FileChanged`) depends on the host emitting watch paths;
+  **reconciliation, not file watching, is the completeness mechanism**, so PackMind
+  never claims to watch every possible future file or to prevent a change that a
+  post-change hook only observes after it happened.
+
 ## Lifecycle hooks
 
 Installed into `.packmind/hooks/` and wired into `.claude/settings.json` by
@@ -144,6 +167,7 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `insights()` | Estimated savings, map coverage, heaviest files, upkeep flags, and the compression store. |
 | `handoff(action, content?)` | Read or update the session resume note (`get` / `set`). |
 | `debt()` | List `packmind:` deferred-shortcut markers left in the code. |
+| `changes(session_id?)` | The session's net change set (files different from session start, from any source) with per-file map and recall status. Read-only. |
 | `review(base?)` | Package the current git diff with the lean decision ladder for an over-engineering review. |
 | `compress(content, kind?)` | Shelve a large non-source output and get a compact, reversible preview plus a retrieval hash. |
 | `retrieve(hash)` | Return the full original a `compress` call stored. |
@@ -179,6 +203,13 @@ Run any command inside a project (a directory with `.packmind/`). `packmind
 | `packmind recall <query...>` | Semantic search across knowledge, journal, solutions, and source from the terminal. |
 | `packmind solutions <term>` | Search recorded bug solutions by term. |
 | `packmind debt` | List `packmind:` deferred-shortcut markers (the lean-mode debt ledger). |
+
+### Change intelligence
+
+| Command | What it does |
+|---------|--------------|
+| `packmind changes [--session <id>] [--json]` | Show the current session's net change set: files added, modified, deleted, or renamed since the session started, from any source, with per-file map and recall status. `--session` selects one when several are active; `--json` prints the raw `ChangeSetV1`. |
+| `packmind reconcile [--session <id>] [--json]` | Force a full reconciliation (git status, or a file-fingerprint manifest for non-git projects) and synchronize the map and recall queue. Succeeds even when there are no changes. |
 
 ### Guardrails and practices
 
