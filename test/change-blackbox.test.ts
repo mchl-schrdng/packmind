@@ -4,6 +4,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { brain } from "../src/state/files.js";
+import { readSessionRecord } from "../src/state/session.js";
+import { reconcileAndSync } from "../src/change/service.js";
 import { DEFAULT_CONFIG } from "../src/state/schema.js";
 
 const distHooks = path.resolve("dist/hooks");
@@ -14,6 +16,20 @@ function gitProject(): { dir: string; hooksDir: string } {
   execFileSync("git", ["-C", dir, "init", "-q"]);
   execFileSync("git", ["-C", dir, "config", "user.email", "t@example.com"]);
   execFileSync("git", ["-C", dir, "config", "user.name", "t"]);
+  const b = brain(dir);
+  fs.mkdirSync(path.join(b.dir, "state", "sessions"), { recursive: true });
+  fs.writeFileSync(b.config, JSON.stringify(DEFAULT_CONFIG));
+  fs.writeFileSync(b.knowledge, "# Knowledge\n");
+  const hooksDir = b.hooksDir;
+  fs.mkdirSync(hooksDir, { recursive: true });
+  for (const f of fs.readdirSync(distHooks)) fs.copyFileSync(path.join(distHooks, f), path.join(hooksDir, f));
+  fs.writeFileSync(path.join(hooksDir, "package.json"), JSON.stringify({ type: "commonjs" }));
+  return { dir, hooksDir };
+}
+
+function plainProject(): { dir: string; hooksDir: string } {
+  // Same as gitProject but WITHOUT git init (non-git manifest path).
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-cbbng-"));
   const b = brain(dir);
   fs.mkdirSync(path.join(b.dir, "state", "sessions"), { recursive: true });
   fs.writeFileSync(b.config, JSON.stringify(DEFAULT_CONFIG));
@@ -77,6 +93,70 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
 
     // The map was synchronized to the externally-created file.
     expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("gen.ts");
+  });
+
+  it("reverting a change across two Stops leaves the map clean (no stale entry)", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // Add then Stop: mapped.
+    fs.writeFileSync(path.join(dir, "temporary.ts"), "export const t = 1;\n");
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("temporary.ts");
+
+    // Revert (delete) then Stop: gone from change set AND map.
+    fs.rmSync(path.join(dir, "temporary.ts"));
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["temporary.ts"]).toBeUndefined();
+    expect(fs.readFileSync(brain(dir).map, "utf8")).not.toContain("temporary.ts");
+  });
+
+  it("non-git: SessionStart captures a manifest baseline so a later change is detected by reconcile", () => {
+    const { dir, hooksDir } = plainProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed"); // eligible file present at baseline
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    const baseName = jsonFiles(brain(dir).changeBaselineDir)[0];
+    const baseline = JSON.parse(fs.readFileSync(path.join(brain(dir).changeBaselineDir, baseName), "utf8"));
+    expect(baseline.kind).toBe("manifest");
+    expect(Object.keys(baseline.hashes)).toContain("seed.ts");
+
+    // A change appears AFTER the baseline (external).
+    fs.writeFileSync(path.join(dir, "external.ts"), "export const e = 1;\n");
+
+    const incarnationId = readSessionRecord(dir, "S1")!.id;
+    const cs = reconcileAndSync(dir, DEFAULT_CONFIG, { incarnationId, sessionId: "S1" });
+    expect(cs.changes["external.ts"].kind).toBe("add");
+    expect(cs.status).not.toBe("degraded"); // baseline existed -> not degraded
+  });
+
+  it("a direct write to an ineligible file (binary) never enters map/change set", () => {
+    const { dir, hooksDir } = gitProject();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.writeFileSync(path.join(dir, "logo.png"), "PNGDATA");
+    // Simulate the PostToolUse hook for that write.
+    run(hooksDir, "post-write.js", { tool_name: "Write", tool_input: { file_path: "logo.png", content: "PNGDATA" }, session_id: "S1" }, dir);
+    let map = "";
+    try { map = fs.readFileSync(brain(dir).map, "utf8"); } catch { /* no map written */ }
+    expect(map).not.toContain("logo.png");
+  });
+
+  it("an empty eligible file is still mapped by reconcile", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.writeFileSync(path.join(dir, "empty.ts"), ""); // empty but eligible
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["empty.ts"].kind).toBe("add");
+    expect(cs.changes["empty.ts"].map).toBe("current");
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("empty.ts");
   });
 
   it("Stop reconciles an external deletion and removes it from the map", () => {

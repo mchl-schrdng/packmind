@@ -1,9 +1,8 @@
 import * as path from "node:path";
 import { brain } from "../state/files.js";
 import { readJsonOr, writeJson } from "../util/fs-atomic.js";
-import { walkProject } from "../state/walk.js";
 import { isGitRepo, gitStatus, type PorcelainStatus } from "./git.js";
-import { isEligiblePath, fingerprint } from "./eligible.js";
+import { isEligiblePath, fingerprint, eligibleWalk } from "./eligible.js";
 import { computeNetChanges, reconcileGit } from "./reconcile.js";
 import type { Config } from "../state/schema.js";
 import type { NetChange } from "./types.js";
@@ -14,7 +13,7 @@ const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "-").slice(
  * Immutable per-incarnation baseline. For git projects it stores the porcelain
  * status at session start plus fingerprints of the already-dirty/untracked
  * eligible paths (so pre-existing dirt isn't attributed later). For non-git it
- * stores a full eligible-file fingerprint manifest (bounded by walkProject).
+ * stores a full eligible-file fingerprint manifest (bounded by eligibleWalk).
  */
 export interface BaselineV1 {
   version: 1;
@@ -72,8 +71,8 @@ export function createBaseline(
   }
 
   const hashes: Record<string, string> = {};
-  for (const { abs, rel } of walkProject(root, config)) {
-    const fp = fingerprint(abs);
+  for (const rel of eligibleWalk(root, config)) {
+    const fp = fingerprint(path.join(root, rel));
     if (fp) hashes[rel] = fp;
   }
   return { ...common, kind: "manifest", hashes };
@@ -99,8 +98,8 @@ export function reconcileSession(root: string, config: Config, baseline: Baselin
     );
   } else {
     const currentHashes: Record<string, string> = {};
-    for (const { abs, rel } of walkProject(root, config)) {
-      const fp = fingerprint(abs);
+    for (const rel of eligibleWalk(root, config)) {
+      const fp = fingerprint(path.join(root, rel));
       if (fp) currentHashes[rel] = fp;
     }
     net = computeNetChanges({ hashes: baseline.hashes }, { hashes: currentHashes });

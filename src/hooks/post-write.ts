@@ -5,55 +5,20 @@ import {
   projectRoot,
   confineToRoot,
   brainPath,
-  readText,
-  writeText,
   appendLine,
   sessionRawKey,
   updateSession,
   readSessionFor,
   recordChangeCandidate,
   hookConfig,
-  parseMap,
-  serializeMap,
-  describeLite,
-  estimateTokens,
-  inputCost,
+  upsertMapEntry,
   outputCost,
-  looksSecret,
+  isEligiblePath,
   enqueueRecall,
   parseInput,
   readStdin,
   emitContext,
-  type MapEntry,
-  type PriceOverrides,
 } from "./runtime.js";
-
-function refreshMap(rel: string, content: string, model: string, prices: PriceOverrides): number {
-  const map = parseMap(readText(brainPath("map.md")));
-  const dir = path.posix.dirname(rel);
-  const section = dir === "." ? "./" : dir + "/";
-  const file = path.posix.basename(rel);
-  const tokens = estimateTokens(content, rel);
-  const entry: MapEntry = {
-    file,
-    description: describeLite(file, content),
-    tokens,
-    cost: inputCost(model, tokens, prices),
-  };
-  if (!map.has(section)) map.set(section, []);
-  const list = map.get(section)!;
-  const idx = list.findIndex((e) => e.file === file);
-  if (idx >= 0) {
-    if (!entry.description && list[idx].description) entry.description = list[idx].description;
-    list[idx] = entry;
-  } else {
-    list.push(entry);
-  }
-  let count = 0;
-  for (const [, l] of map) count += l.length;
-  writeText(brainPath("map.md"), serializeMap(map, { fileCount: count, updated: new Date().toISOString() }));
-  return tokens;
-}
 
 async function main(): Promise<void> {
   requireState();
@@ -67,8 +32,9 @@ async function main(): Promise<void> {
   if (confineToRoot(root, filePath) === null) process.exit(0);
   const abs = path.resolve(root, filePath);
   const rel = path.relative(root, abs).split(path.sep).join("/");
-  if (rel.startsWith(".packmind/")) process.exit(0);
-  if (looksSecret(filePath, cfg.extraSecretGlobs, rel)) process.exit(0);
+  // Full eligibility (secret + binary + excluded dir + size + symlink + .packmind),
+  // so a direct write to an ineligible file never pollutes map/recall/change set.
+  if (!isEligiblePath(root, rel, cfg.extraSecretGlobs, cfg.excludeDirs)) process.exit(0);
 
   let content = "";
   try {
@@ -78,7 +44,9 @@ async function main(): Promise<void> {
   }
 
   const action = (input.tool_name as string) || "edit";
-  const tokens = content ? refreshMap(rel, content, cfg.model, cfg.prices) : 0;
+  // Locked read-modify-write of map.md so parallel PostToolUse hooks can't
+  // clobber each other's map entries (the old unlocked read + locked write did).
+  const tokens = content ? upsertMapEntry(rel, content, cfg.model, cfg.prices) : 0;
 
   appendLine(
     brainPath("journal.md"),

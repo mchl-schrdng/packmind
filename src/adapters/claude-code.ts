@@ -51,6 +51,8 @@ export function buildHookMap(): HookMap {
     Stop: [group("", "stop.js", 10)],
     SessionEnd: [group("", "session-end.js", 10)],
     PostToolBatch: [group("", "post-tool-batch.js", 10)],
+    // FileChanged fires for the paths SessionStart emits via watchPaths.
+    FileChanged: [group("", "file-changed.js", 5)],
   };
 }
 

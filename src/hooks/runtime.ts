@@ -427,6 +427,7 @@ export interface HookConfig {
   model: string;
   extraSecretGlobs: string[];
   excludeDirs: string[];
+  maxFiles: number;
   blockSecrets: boolean;
   recallEnabled: boolean;
   leanMode: string;
@@ -438,6 +439,7 @@ export function hookConfig(): HookConfig {
     model: typeof raw?.model === "string" ? raw.model : "claude-opus-4-8",
     extraSecretGlobs: Array.isArray(raw?.map?.extraSecretGlobs) ? raw.map.extraSecretGlobs : [],
     excludeDirs: Array.isArray(raw?.map?.excludeDirs) ? raw.map.excludeDirs : [],
+    maxFiles: typeof raw?.map?.maxFiles === "number" ? raw.map.maxFiles : 4000,
     blockSecrets: raw?.guard?.blockSecrets === true,
     recallEnabled: raw?.recall?.enabled !== false,
     leanMode: typeof raw?.guard?.lean?.mode === "string" ? raw.guard.lean.mode : "lite",
@@ -480,6 +482,18 @@ export function parseInput(raw: string): Record<string, any> {
 export function emitContext(event: string, text: string): void {
   if (!text) return;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }));
+}
+/**
+ * SessionStart output with optional `watchPaths` (absolute) for FileChanged.
+ * watchPaths is a latency optimization for external edits to existing files -
+ * reconciliation, not watching, is the completeness mechanism - so an unsupported
+ * or partial watch list never affects correctness.
+ */
+export function emitSessionStart(text: string, watchPaths: string[]): void {
+  const hookSpecificOutput: Record<string, unknown> = { hookEventName: "SessionStart" };
+  if (text) hookSpecificOutput.additionalContext = text;
+  if (watchPaths.length) hookSpecificOutput.watchPaths = watchPaths;
+  process.stdout.write(JSON.stringify({ hookSpecificOutput }));
 }
 /** PreToolUse deny (hard block) with a reason Claude sees. */
 export function emitDeny(reason: string): void {
@@ -902,10 +916,22 @@ const CHANGE_MAX_SIZE = 1_048_576;
 const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 128) || "unknown";
 
 export function fingerprint(abs: string): string | null {
+  // O_NOFOLLOW: a symlink final component fails to open atomically (no
+  // lstat-then-read TOCTOU); the fd is what we hash. Mirror of change/eligible.ts.
+  let fd: number | undefined;
   try {
-    return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
+    fd = fs.openSync(abs, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    return crypto.createHash("sha1").update(fs.readFileSync(fd)).digest("hex");
   } catch {
     return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
   }
 }
 export function isEligiblePath(root: string, rel: string, extraSecretGlobs: string[], excludeDirs: string[]): boolean {
@@ -920,6 +946,8 @@ export function isEligiblePath(root: string, rel: string, extraSecretGlobs: stri
   const base = segments[segments.length - 1];
   if (CHANGE_BINARY_EXT.has(path.extname(base).toLowerCase())) return false;
   if (looksSecret(base, extraSecretGlobs, posix)) return false;
+  // Symlink-aware confinement: reject a path whose real location escapes root.
+  if (confineToRoot(root, rel) === null) return false;
   try {
     const st = fs.statSync(path.join(root, rel));
     if (st.isFile() && st.size > CHANGE_MAX_SIZE) return false;
@@ -1113,6 +1141,43 @@ export function createBaselineGit(root: string, meta: { incarnationId: string; s
   }
   return { version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root, cwd: meta.cwd, createdAt: new Date().toISOString(), kind: "git", status, hashes };
 }
+/** Bounded zero-dep eligible-file walk (mirror of change/eligible.ts eligibleWalk). */
+export function eligibleWalk(root: string, extraSecretGlobs: string[], excludeDirs: string[], maxFiles: number): string[] {
+  const max = maxFiles || 4000;
+  const excluded = new Set(excludeDirs);
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    if (out.length >= max) return;
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (out.length >= max) return;
+      const abs = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name === ".git" || e.name === ".packmind" || excluded.has(e.name)) continue;
+        walk(abs);
+      } else if (e.isFile()) {
+        const rel = path.relative(root, abs).split(path.sep).join("/");
+        if (isEligiblePath(root, rel, extraSecretGlobs, excludeDirs)) out.push(rel);
+      }
+    }
+  };
+  walk(root);
+  return out;
+}
+/** Create a non-git manifest baseline in-hook (bounded eligible-file fingerprints). */
+export function createBaselineManifest(root: string, meta: { incarnationId: string; sessionId?: string; cwd?: string }, extraSecretGlobs: string[], excludeDirs: string[], maxFiles: number): BaselineV1 {
+  const hashes: Record<string, string> = {};
+  for (const rel of eligibleWalk(root, extraSecretGlobs, excludeDirs, maxFiles)) {
+    const fp = fingerprint(path.join(root, rel));
+    if (fp) hashes[rel] = fp;
+  }
+  return { version: 1, incarnationId: meta.incarnationId, sessionId: meta.sessionId, root, cwd: meta.cwd, createdAt: new Date().toISOString(), kind: "manifest", hashes };
+}
 /** Git-only reconcile in-hook: returns net changes filtered by eligibility, or
  * null if the baseline isn't a git baseline (defer to the CLI for manifests). */
 export function reconcileGitSession(root: string, baseline: BaselineV1, extraSecretGlobs: string[], excludeDirs: string[]): NetChange[] | null {
@@ -1160,6 +1225,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   if (net === null) return readChangeSet(session.id);
   const at = new Date().toISOString();
 
+  const before = readChangeSet(session.id);
+  const oldPaths = before ? Object.keys(before.changes) : [];
+
   updateChangeSet(session.id, changeSetFallback(root, session), (cs) => reconcileInto(cs, net, at));
 
   const states: Record<string, { map: string; recall: string }> = {};
@@ -1171,9 +1239,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
         map = "removed";
       } else {
         if (n.kind === "rename" && n.previousPath) removeMapEntry(n.previousPath);
-        const content = readText(path.join(root, n.path), "");
-        if (content) {
-          upsertMapEntry(n.path, content, cfg.model, cfg.prices);
+        const abs = path.join(root, n.path);
+        if (fs.existsSync(abs)) {
+          upsertMapEntry(n.path, readText(abs, ""), cfg.model, cfg.prices); // map even empty files
           map = "current";
         }
       }
@@ -1192,6 +1260,27 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
       }
     }
     states[n.path] = { map, recall };
+  }
+
+  // Repair paths that LEFT the net (reverted to baseline): sync map/recall to the
+  // current filesystem state so an add-then-delete doesn't leave a stale map
+  // entry and a delete-then-restore doesn't leave the entry removed.
+  const netPaths = new Set(net.map((n) => n.path));
+  for (const p of oldPaths) {
+    if (netPaths.has(p)) continue;
+    try {
+      if (fs.existsSync(path.join(root, p))) upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
+      else removeMapEntry(p);
+    } catch {
+      /* best effort */
+    }
+    if (cfg.recallEnabled) {
+      try {
+        enqueueRecall(p);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   let result: ChangeSetV1 | null = null;

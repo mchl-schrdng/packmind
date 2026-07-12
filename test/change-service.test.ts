@@ -64,6 +64,24 @@ describe("[P1] change service: reconcile + sync", () => {
     expect(formatChangeSet(cs)).toContain("src/gen.ts");
   });
 
+  it("a reverted add is removed from the map + change set on the next reconcile", () => {
+    const dir = gitProject();
+    updateSession(dir, "S1", (s) => { s.status = "active"; s.sessionId = "S1"; });
+    writeBaseline(dir, createBaseline(dir, config, { incarnationId: "S1", sessionId: "S1" }));
+
+    // Add a file, reconcile -> it's in the change set and the map.
+    fs.writeFileSync(path.join(dir, "temp.ts"), "export const t = 1;\n");
+    let cs = reconcileAndSync(dir, config, { incarnationId: "S1", sessionId: "S1" });
+    expect(cs.changes["temp.ts"]).toBeTruthy();
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("temp.ts");
+
+    // Revert (delete it) -> reconcile -> gone from BOTH the change set and the map.
+    fs.rmSync(path.join(dir, "temp.ts"));
+    cs = reconcileAndSync(dir, config, { incarnationId: "S1", sessionId: "S1" });
+    expect(cs.changes["temp.ts"]).toBeUndefined();
+    expect(fs.readFileSync(brain(dir).map, "utf8")).not.toContain("temp.ts");
+  });
+
   it("marks the set degraded when the baseline was missing (rebuilt at reconcile)", () => {
     const dir = gitProject();
     updateSession(dir, "S1", (s) => { s.status = "active"; s.sessionId = "S1"; });

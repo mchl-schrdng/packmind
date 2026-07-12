@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 import { readTextOr } from "../util/fs-atomic.js";
 import { activeSessions } from "../state/session.js";
@@ -57,6 +58,11 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
     degradedReason = "baseline was missing and rebuilt from the current state";
   }
 
+  // Capture the paths tracked BEFORE this reconcile, so paths that leave the net
+  // (reverted to baseline) get their map/recall repaired to the current fs state.
+  const before = readChangeSet(root, s.incarnationId);
+  const oldPaths = before ? Object.keys(before.changes) : [];
+
   const net = reconcileSession(root, config, baseline);
   const at = new Date().toISOString();
   const fallback = emptyChangeSet({
@@ -86,9 +92,9 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
         map = "removed";
       } else {
         if (n.kind === "rename" && n.previousPath) removeMapEntry(root, n.previousPath);
-        const content = readTextOr(path.join(root, n.path), "");
-        if (content) {
-          upsertMapEntry(root, n.path, content, config);
+        const abs = path.join(root, n.path);
+        if (fs.existsSync(abs)) {
+          upsertMapEntry(root, n.path, readTextOr(abs, ""), config); // map even empty files
           map = "current";
         }
       }
@@ -107,6 +113,29 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
       }
     }
     states[n.path] = { map, recall };
+  }
+
+  // Repair paths that LEFT the net (reverted to baseline): sync map/recall to the
+  // current filesystem state. These are no longer in the change set, so only the
+  // side effects matter (a stale map entry from an add-then-delete, or a removed
+  // entry from a delete-then-restore).
+  const netPaths = new Set(net.map((n) => n.path));
+  for (const p of oldPaths) {
+    if (netPaths.has(p)) continue;
+    const abs = path.join(root, p);
+    try {
+      if (fs.existsSync(abs)) upsertMapEntry(root, p, readTextOr(abs, ""), config);
+      else removeMapEntry(root, p);
+    } catch {
+      /* best effort */
+    }
+    if (config.recall.enabled) {
+      try {
+        enqueue(root, p);
+      } catch {
+        /* best effort */
+      }
+    }
   }
 
   updateChangeSet(root, s.incarnationId, fallback, (cs) => {

@@ -18,3 +18,6 @@ coverage/
 # .packmind/state/
 # .packmind/recall/
 # .packmind/hooks/*.lock
+
+# packmind dogfooding backups
+*.packmind-bak

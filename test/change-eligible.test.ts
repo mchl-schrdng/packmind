@@ -27,6 +27,18 @@ describe("isEligiblePath", () => {
   it("rejects a path that escapes the root", () => {
     expect(isEligiblePath(root, "../outside.ts", cfg)).toBe(false);
   });
+  it("rejects a symlink whose real target is outside the project", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-symlk-"));
+    const project = path.join(base, "proj");
+    fs.mkdirSync(project);
+    const outside = path.join(base, "secret.txt");
+    fs.writeFileSync(outside, "// SECRET external content\n");
+    fs.symlinkSync(outside, path.join(project, "link.ts"));
+    expect(isEligiblePath(project, "link.ts", cfg)).toBe(false);
+    // A real in-project file remains eligible.
+    fs.writeFileSync(path.join(project, "ok.ts"), "x");
+    expect(isEligiblePath(project, "ok.ts", cfg)).toBe(true);
+  });
   it("a deleted (absent) eligible path is still eligible (for a delete record)", () => {
     // /proj/src/gone.ts does not exist; still eligible by name.
     expect(isEligiblePath(root, "src/gone.ts", cfg)).toBe(true);

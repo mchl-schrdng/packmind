@@ -5,7 +5,8 @@ import { consolidateJournal } from "../state/maintain.js";
 import { buildIndex } from "../recall/indexer.js";
 import { LocalEmbedder } from "../recall/embedder.js";
 import { pruneSnapshots } from "../state/snapshot.js";
-import { pruneStaleSessions } from "../state/session.js";
+import { pruneStaleSessions, activeSessions } from "../state/session.js";
+import { reconcileAndSync } from "../change/service.js";
 
 const STALE_SESSION_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -20,6 +21,19 @@ export async function runMaintain(opts: { quiet?: boolean; keepBackups?: string 
   const say = (m: string) => {
     if (!opts.quiet) console.log(m);
   };
+
+  // Reconcile every active session's change set (also the authoritative path for
+  // non-git projects) so the map/recall reflect all sources, then refresh the map.
+  let reconciled = 0;
+  for (const a of activeSessions(projectRoot)) {
+    try {
+      reconcileAndSync(projectRoot, config, { incarnationId: a.record.id, sessionId: a.record.sessionId, cwd: a.record.cwd });
+      reconciled++;
+    } catch {
+      /* best effort */
+    }
+  }
+  if (reconciled) say(chalk.cyan(`• change sets reconciled - ${reconciled} session(s)`));
 
   const files = scanProject(projectRoot, config);
   say(chalk.cyan(`• map refreshed - ${files} files`));

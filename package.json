@@ -1,6 +1,6 @@
 {
   "name": "packmind",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "A second brain for Claude Code: project memory, estimated token & cost activity, semantic recall, and active guardrails.",
   "type": "module",
   "bin": {
@@ -28,9 +28,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@vitest/coverage-v8": "^3.2.6",
+    "@vitest/coverage-v8": "^3.2.7",
     "typescript": "^5.7.0",
-    "vitest": "^3.2.6"
+    "vitest": "^3.2.7"
   },
   "engines": {
     "node": ">=20.0.0"
