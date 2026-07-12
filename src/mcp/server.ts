@@ -15,6 +15,7 @@ import {
   toolInsights,
   toolHandoff,
   toolDebt,
+  toolChanges,
   toolReview,
   toolCompress,
   toolRetrieve,
@@ -103,6 +104,16 @@ const TOOLS = [
     inputSchema: { type: "object", properties: {} },
   },
   {
+    name: "changes",
+    description: "Show the current session's net change set: files added/modified/deleted/renamed since the session started, from any source (Write/Edit, Bash, generators, or external editors), with map and recall sync status. Read-only.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session_id: { type: "string", description: "Which session (the PackMind session id shown at SessionStart); only needed when several are active." },
+      },
+    },
+  },
+  {
     name: "review",
     description: "Package the current diff (working tree vs HEAD, or vs a base ref) with the lean decision ladder so you can review it for over-engineering and produce a delete-list.",
     inputSchema: {
@@ -172,6 +183,8 @@ async function main(): Promise<void> {
           return text(toolHandoff(ctx, a.action === "set" ? "set" : "get", a.content));
         case "debt":
           return text(toolDebt(ctx));
+        case "changes":
+          return text(toolChanges(ctx, { session_id: a.session_id }));
         case "review":
           return text(toolReview(ctx, a.base));
         case "compress":

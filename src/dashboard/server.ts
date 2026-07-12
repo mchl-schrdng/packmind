@@ -4,6 +4,7 @@ import * as crypto from "node:crypto";
 import { URL } from "node:url";
 import { brain } from "../state/files.js";
 import { activeSessions } from "../state/session.js";
+import { getChangeSet } from "../change/service.js";
 import { loadConfig, type Config } from "../state/schema.js";
 import { readTextOr, readJsonOr, writeJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
@@ -126,6 +127,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse, ctx: 
       if (url.pathname === "/api/overview") return json(res, 200, overview(ctx));
       if (url.pathname === "/api/insights") return json(res, 200, computeInsights(ctx.projectRoot, ctx.config));
       if (url.pathname === "/api/map") return json(res, 200, mapEntries(ctx));
+      if (url.pathname === "/api/changes") {
+        const sessions = activeSessions(ctx.projectRoot).map((a) => ({
+          id: a.record.id,
+          sessionId: a.record.sessionId,
+          cwd: a.record.cwd,
+          changeSet: getChangeSet(ctx.projectRoot, a.record.id),
+        }));
+        return json(res, 200, { sessions });
+      }
       if (url.pathname === "/api/solutions")
         return json(res, 200, readJsonOr(brain(ctx.projectRoot).solutions, []));
       if (url.pathname === "/api/journal")

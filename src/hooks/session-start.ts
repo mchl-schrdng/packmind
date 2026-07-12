@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as crypto from "node:crypto";
 import {
   requireState,
+  projectRoot,
   brainPath,
   readText,
   appendLine,
@@ -16,6 +17,11 @@ import {
   foldSessionIntoLedger,
   emptyLedger,
   hookConfig,
+  isGitRepo,
+  createBaselineGit,
+  writeBaseline,
+  emptyChangeSet,
+  updateChangeSet,
   emitContext,
   type LedgerLike,
   type Session,
@@ -69,6 +75,35 @@ async function main(): Promise<void> {
     if (fold) foldIntoLedger(fold, fold.model ?? cfg.model);
     updateJson<Session | null>(sessionFile(rawKey), null, () => record);
     recordId = record.id;
+
+    // New incarnation (fresh start, or /clear): snapshot a change baseline so the
+    // reconciler has something to diff against. Git only in-hook; non-git manifest
+    // baselines are created lazily by the CLI/MCP. Fail open on any error.
+    const isNewIncarnation = !existing || existing.id !== record.id;
+    if (isNewIncarnation && isGitRepo(projectRoot())) {
+      try {
+        const baseline = createBaselineGit(
+          projectRoot(),
+          { incarnationId: record.id, sessionId: record.sessionId, cwd },
+          cfg.extraSecretGlobs,
+          cfg.excludeDirs,
+        );
+        writeBaseline(baseline);
+        updateChangeSet(
+          record.id,
+          emptyChangeSet({
+            incarnationId: record.id,
+            sessionId: record.sessionId,
+            root: projectRoot(),
+            cwd,
+            baselineCreatedAt: baseline.createdAt,
+          }),
+          () => {},
+        );
+      } catch {
+        /* baseline is best-effort; the CLI can rebuild it */
+      }
+    }
 
     appendLine(
       brainPath("journal.md"),

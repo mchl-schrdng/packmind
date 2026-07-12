@@ -8,7 +8,7 @@ import { MANAGED_BY } from "../adapters/claude-code.js";
 import { pruneRegistry } from "./registry.js";
 
 const HOOK_SCRIPTS = [
-  "runtime.js", "session-start.js", "session-end.js", "prompt-submit.js", "pre-read.js",
+  "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
   "post-read.js", "pre-write.js", "post-write.js", "stop.js",
 ];
 

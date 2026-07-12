@@ -50,6 +50,7 @@ export function buildHookMap(): HookMap {
     ],
     Stop: [group("", "stop.js", 10)],
     SessionEnd: [group("", "session-end.js", 10)],
+    PostToolBatch: [group("", "post-tool-batch.js", 10)],
   };
 }
 

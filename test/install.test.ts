@@ -30,12 +30,14 @@ describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a 
       console.log = log;
     }
 
-    // The compiled hook must be copied into the project (else the registered
-    // SessionEnd hook points at a file that never gets installed).
-    expect(fs.existsSync(path.join(dir, ".packmind", "hooks", "session-end.js"))).toBe(true);
+    // Every registered hook script must be copied into the project (else the
+    // registered hook points at a file that never gets installed).
+    for (const script of ["session-end.js", "post-tool-batch.js", "file-changed.js"]) {
+      expect(fs.existsSync(path.join(dir, ".packmind", "hooks", script))).toBe(true);
+    }
 
     const settings = JSON.parse(fs.readFileSync(path.join(dir, ".claude", "settings.json"), "utf8"));
-    expect(settings.hooks.SessionEnd).toBeTruthy();
     expect(JSON.stringify(settings.hooks.SessionEnd)).toContain("session-end.js");
+    expect(JSON.stringify(settings.hooks.PostToolBatch)).toContain("post-tool-batch.js");
   });
 });

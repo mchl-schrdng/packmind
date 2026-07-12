@@ -1,6 +1,6 @@
 {
   "name": "packmind",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "description": "A second brain for Claude Code: project memory, estimated token & cost activity, semantic recall, and active guardrails.",
   "type": "module",
   "bin": {

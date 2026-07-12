@@ -1,5 +1,6 @@
 import {
   requireState,
+  projectRoot,
   brainPath,
   readJson,
   updateJson,
@@ -10,6 +11,8 @@ import {
   sessionRawKey,
   readSessionFor,
   updateSession,
+  reconcileAndSync,
+  changedPaths,
   computeStopReminders,
   computePracticeReminders,
   foldSessionIntoLedger,
@@ -28,16 +31,19 @@ async function main(): Promise<void> {
   const session = readSessionFor(rawKey);
   if (!session) process.exit(0);
 
-  const reads = Object.keys(session.reads).length;
-  if (reads === 0 && session.writes.length === 0) process.exit(0);
-
   const cfg = hookConfig();
+  const root = projectRoot();
 
-  // Commit the session into the lifetime usage ledger. Stop fires once per TURN
-  // with cumulative session totals, so the fold upserts by session id (replacing
-  // this session's row and adjusting totals by the delta) rather than pushing a
-  // new row each turn - otherwise every figure inflates quadratically. The
-  // read-modify-write is locked so a concurrent writer can't lose the update.
+  // Reconcile FIRST so the change set reflects Bash/external/parallel changes,
+  // not just direct Write/Edit calls. Git projects reconcile in-hook; a non-git
+  // or missing baseline returns the current set unchanged (deferred to the CLI).
+  const changeSet = reconcileAndSync(root, session, cfg);
+  const netPaths = changedPaths(changeSet);
+
+  const reads = Object.keys(session.reads).length;
+  if (reads === 0 && session.writes.length === 0 && netPaths.length === 0) process.exit(0);
+
+  // Commit the session into the lifetime usage ledger (locked, upsert by id).
   const endedAt = new Date().toISOString();
   updateJson<LedgerLike>(brainPath("usage.json"), emptyLedger(cfg.model), (ledger) => {
     foldSessionIntoLedger(ledger, session, endedAt);
@@ -50,9 +56,12 @@ async function main(): Promise<void> {
     `\n> ${session.id}: ${reads} reads, ${session.writes.length} writes, ~$${turnCost.toFixed(4)} this turn.\n`,
   );
 
-  // Regenerate the session handoff doc for cheap resume next time.
-  if (session.writes.length > 0) {
-    const recent = session.writes.slice(-12).map((w) => `- \`${w.file}\` (${w.action})`);
+  // Handoff from the canonical net change set (falls back to direct writes).
+  const recent =
+    netPaths.length > 0
+      ? netPaths.slice(-12).map((p) => `- \`${p}\``)
+      : session.writes.slice(-12).map((w) => `- \`${w.file}\` (${w.action})`);
+  if (recent.length > 0) {
     writeText(
       brainPath("handoff.md"),
       [
@@ -70,17 +79,14 @@ async function main(): Promise<void> {
     );
   }
 
-  // Latch reminders so each fires at most once per session - otherwise the
-  // still-true condition re-emits every turn and the Stop emission re-invokes
-  // the agent in an infinite loop. Practice-pack session checks (e.g. "src/**
-  // changed but no test written") come from the pre-resolved effective guard set.
+  // Latch reminders so each fires at most once per session (otherwise the
+  // still-true condition re-emits every turn and the Stop emission re-invokes the
+  // agent in a loop). Practice checks now see the full net change set.
   const effective = readJson<{ checks?: SessionCheck[] }>(brainPath("guard.effective.json"), {});
   const reminders = [
     ...computeStopReminders(session),
-    ...computePracticeReminders(session, effective.checks ?? []),
+    ...computePracticeReminders(session, effective.checks ?? [], netPaths.length ? netPaths : undefined),
   ];
-  // Persist the reminder latches (mutated in-memory above) onto this session's
-  // own file, inside a lock, so a concurrent hook write isn't clobbered.
   if (reminders.length) {
     updateSession(rawKey, (s) => {
       s.notifiedWrites = session.notifiedWrites;

@@ -1,0 +1,99 @@
+import { describe, it, expect } from "vitest";
+import * as os from "node:os";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { execFileSync } from "node:child_process";
+import { brain } from "../src/state/files.js";
+import { DEFAULT_CONFIG } from "../src/state/schema.js";
+
+const distHooks = path.resolve("dist/hooks");
+const built = fs.existsSync(path.join(distHooks, "session-start.js"));
+
+function gitProject(): { dir: string; hooksDir: string } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-cbb-"));
+  execFileSync("git", ["-C", dir, "init", "-q"]);
+  execFileSync("git", ["-C", dir, "config", "user.email", "t@example.com"]);
+  execFileSync("git", ["-C", dir, "config", "user.name", "t"]);
+  const b = brain(dir);
+  fs.mkdirSync(path.join(b.dir, "state", "sessions"), { recursive: true });
+  fs.writeFileSync(b.config, JSON.stringify(DEFAULT_CONFIG));
+  fs.writeFileSync(b.knowledge, "# Knowledge\n");
+  const hooksDir = b.hooksDir;
+  fs.mkdirSync(hooksDir, { recursive: true });
+  for (const f of fs.readdirSync(distHooks)) fs.copyFileSync(path.join(distHooks, f), path.join(hooksDir, f));
+  fs.writeFileSync(path.join(hooksDir, "package.json"), JSON.stringify({ type: "commonjs" }));
+  return { dir, hooksDir };
+}
+
+function run(hooksDir: string, name: string, stdin: unknown, dir: string): void {
+  execFileSync("node", [path.join(hooksDir, name)], {
+    input: JSON.stringify(stdin),
+    env: { ...process.env, CLAUDE_PROJECT_DIR: dir, PACKMIND_ROOT: dir },
+    timeout: 5000,
+  });
+}
+const jsonFiles = (dir: string) => {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+};
+
+describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git baseline + change set", () => {
+  it("writes a baseline and change set for a new incarnation in a git repo", () => {
+    const { dir, hooksDir } = gitProject();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    expect(jsonFiles(brain(dir).changeBaselineDir).length).toBe(1);
+    expect(jsonFiles(brain(dir).changeSetDir).length).toBe(1);
+
+    const baseline = JSON.parse(
+      fs.readFileSync(path.join(brain(dir).changeBaselineDir, jsonFiles(brain(dir).changeBaselineDir)[0]), "utf8"),
+    );
+    expect(baseline.kind).toBe("git");
+    expect(baseline.version).toBe(1);
+  });
+
+  it("Stop reconciles a Bash/external-created file (no Write hook) and syncs the map", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // External change: create a file as if Bash/a generator did it (no PostToolUse).
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "gen.ts"), "// generated\nexport const g = 1;\n");
+
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    const csName = jsonFiles(brain(dir).changeSetDir)[0];
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, csName), "utf8"));
+    expect(Object.keys(cs.changes)).toContain("src/gen.ts");
+    expect(cs.changes["src/gen.ts"].kind).toBe("add");
+    expect(cs.changes["src/gen.ts"].map).toBe("current");
+
+    // The map was synchronized to the externally-created file.
+    expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("gen.ts");
+  });
+
+  it("Stop reconciles an external deletion and removes it from the map", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    // Put it on the map first (as if scanned), then delete it externally.
+    fs.writeFileSync(brain(dir).map, "# Project Map\n\n## ./\n\n- `doomed.ts` · ~2 tok\n");
+    fs.rmSync(path.join(dir, "doomed.ts"));
+
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["doomed.ts"].kind).toBe("delete");
+    expect(fs.readFileSync(brain(dir).map, "utf8")).not.toContain("doomed.ts");
+  });
+});

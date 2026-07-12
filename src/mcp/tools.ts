@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import { brain, type SessionState } from "../state/files.js";
 import { activeSessions } from "../state/session.js";
+import { resolveChangeSession, getChangeSet, formatChangeSet } from "../change/service.js";
 import { loadConfig, type Config } from "../state/schema.js";
 import { readJsonOr, writeJson, readTextOr, writeText, updateJson } from "../util/fs-atomic.js";
 import { parseMap } from "../state/formats.js";
@@ -222,6 +223,17 @@ export function toolCompress(ctx: ToolContext, content: string, kind?: string): 
 
 export function toolRetrieve(ctx: ToolContext, hash: string): string {
   return retrieveBlob(ctx.projectRoot, hash) ?? `No stored content for "${hash}" (it may have been pruned).`;
+}
+
+/**
+ * Read-only view of the current session's net change set (files different from
+ * the session's start, from any source). Routes by session like record_evidence.
+ */
+export function toolChanges(ctx: ToolContext, args: { session_id?: string }): string {
+  const r = resolveChangeSession(ctx.projectRoot, args.session_id);
+  if ("error" in r) return r.error;
+  if ("none" in r) return "No active PackMind session.";
+  return formatChangeSet(getChangeSet(ctx.projectRoot, r.ok.incarnationId));
 }
 
 /** True if the project has been initialized. */

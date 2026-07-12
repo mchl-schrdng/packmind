@@ -5,7 +5,7 @@ import { relativePosix } from "../util/paths.js";
 import { looksSecret } from "../guard/secrets.js";
 import type { Config } from "./schema.js";
 
-const BINARY_EXT = new Set([
+export const BINARY_EXT = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".webp", ".avif",
   ".woff", ".woff2", ".ttf", ".eot", ".otf",
   ".zip", ".tar", ".gz", ".bz2", ".7z", ".rar", ".jar",

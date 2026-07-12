@@ -8,6 +8,10 @@ import * as pricing from "../src/cost/pricing.js";
 import * as ledger from "../src/cost/ledger.js";
 import * as rt from "../src/hooks/runtime.js";
 import * as sess from "../src/state/session.js";
+import * as cgit from "../src/change/git.js";
+import * as crec from "../src/change/reconcile.js";
+import * as celig from "../src/change/eligible.js";
+import { DEFAULT_CONFIG } from "../src/state/schema.js";
 
 /**
  * The zero-dependency hook runtime mirrors several canonical modules. These
@@ -107,6 +111,28 @@ describe("hook runtime parity", () => {
       expect(rt.classifySessionEnd(reason)).toEqual(sess.classifySessionEnd(reason));
       expect(JSON.stringify(rt.applySessionEnd(rec as any, { reason, now: "t1" })))
         .toEqual(JSON.stringify(sess.applySessionEnd(rec as any, { reason, now: "t1" })));
+    }
+  });
+
+  it("change: parsePorcelainV2 / computeNetChanges / reconcileGit match canonical", () => {
+    const z = ["1 .M N... 100644 100644 100644 aaa bbb src/a.ts", "2 R. N... 100644 100644 100644 aaa bbb R100 new.ts", "old.ts", "? u.ts"].join("\0") + "\0";
+    expect(JSON.stringify(rt.parsePorcelainV2(z))).toEqual(JSON.stringify(cgit.parsePorcelainV2(z)));
+
+    const b = { hashes: { "a.ts": "h1", "old.ts": "h1" } };
+    const c = { hashes: { "a.ts": "h2", "new.ts": "h1" }, renames: [{ from: "old.ts", to: "new.ts" }] };
+    expect(JSON.stringify(rt.computeNetChanges(b as any, c as any))).toEqual(JSON.stringify(crec.computeNetChanges(b as any, c as any)));
+
+    const gb = { status: { changed: [{ path: "pre.ts", xy: ".M" }], renames: [] }, hashes: { "pre.ts": "h1" } };
+    const gc = { status: { changed: [{ path: "pre.ts", xy: ".M" }, { path: "n.ts", xy: "??" }], renames: [] }, hashes: { "pre.ts": "h2" } };
+    expect(JSON.stringify(rt.reconcileGit(gb as any, gc as any))).toEqual(JSON.stringify(crec.reconcileGit(gb as any, gc as any)));
+  });
+
+  it("change: isEligiblePath matches canonical for the same rules", () => {
+    const root = "/proj";
+    const globs = DEFAULT_CONFIG.map.extraSecretGlobs;
+    const dirs = DEFAULT_CONFIG.map.excludeDirs;
+    for (const rel of ["src/a.ts", ".packmind/x", "node_modules/y.js", "id_rsa", "assets/l.png", "../out.ts"]) {
+      expect(rt.isEligiblePath(root, rel, globs, dirs)).toEqual(celig.isEligiblePath(root, rel, DEFAULT_CONFIG));
     }
   });
 
