@@ -483,6 +483,18 @@ export function emitContext(event: string, text: string): void {
   if (!text) return;
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: text } }));
 }
+/**
+ * SessionStart output with optional `watchPaths` (absolute) for FileChanged.
+ * watchPaths is a latency optimization for external edits to existing files -
+ * reconciliation, not watching, is the completeness mechanism - so an unsupported
+ * or partial watch list never affects correctness.
+ */
+export function emitSessionStart(text: string, watchPaths: string[]): void {
+  const hookSpecificOutput: Record<string, unknown> = { hookEventName: "SessionStart" };
+  if (text) hookSpecificOutput.additionalContext = text;
+  if (watchPaths.length) hookSpecificOutput.watchPaths = watchPaths;
+  process.stdout.write(JSON.stringify({ hookSpecificOutput }));
+}
 /** PreToolUse deny (hard block) with a reason Claude sees. */
 export function emitDeny(reason: string): void {
   process.stdout.write(

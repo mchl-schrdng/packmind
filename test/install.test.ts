@@ -39,5 +39,21 @@ describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a 
     const settings = JSON.parse(fs.readFileSync(path.join(dir, ".claude", "settings.json"), "utf8"));
     expect(JSON.stringify(settings.hooks.SessionEnd)).toContain("session-end.js");
     expect(JSON.stringify(settings.hooks.PostToolBatch)).toContain("post-tool-batch.js");
+    expect(JSON.stringify(settings.hooks.FileChanged)).toContain("file-changed.js");
+  });
+});
+
+describe("buildHookMap registers every shipped lifecycle event", () => {
+  it("has an entry for each new event so doctor's matrix check can verify it", () => {
+    const map = buildHookMap();
+    for (const [event, script] of [
+      ["SessionStart", "session-start.js"],
+      ["SessionEnd", "session-end.js"],
+      ["PostToolBatch", "post-tool-batch.js"],
+      ["FileChanged", "file-changed.js"],
+      ["Stop", "stop.js"],
+    ] as const) {
+      expect(JSON.stringify(map[event] ?? []), event).toContain(script);
+    }
   });
 });
