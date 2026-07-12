@@ -1006,6 +1006,24 @@ export function gitStatus(root: string): PorcelainStatus | null {
   }
 }
 
+/** Bounded list of tracked, non-ignored, eligible files for FileChanged watchPaths. */
+export function gitWatchPaths(root: string, extraSecretGlobs: string[], excludeDirs: string[], cap: number): string[] {
+  try {
+    const out = execFileSync("git", ["-C", root, "ls-files", "-z"], {
+      encoding: "utf8", timeout: 5000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"],
+    });
+    const rels: string[] = [];
+    for (const rel of out.split("\0")) {
+      if (!rel) continue;
+      if (isEligiblePath(root, rel, extraSecretGlobs, excludeDirs)) rels.push(rel);
+      if (rels.length >= cap) break;
+    }
+    return rels;
+  } catch {
+    return [];
+  }
+}
+
 export function computeNetChanges(baseline: Snapshot, current: Snapshot): NetChange[] {
   const out: NetChange[] = [];
   const handled = new Set<string>();
@@ -1189,7 +1207,18 @@ export function reconcileGitSession(root: string, baseline: BaselineV1, extraSec
     if (fp) overlap[rel] = fp;
   }
   const net = reconcileGit({ status: baseline.status ?? { changed: [], renames: [] }, hashes: baseline.hashes }, { status: current, hashes: overlap });
-  return net.filter((c) => isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) && (!c.previousPath || isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs)));
+  // Transform renames that cross the eligibility boundary (mirror of baseline.ts).
+  return net.flatMap((c): NetChange[] => {
+    if (c.kind === "rename") {
+      const fromOk = c.previousPath ? isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs) : false;
+      const toOk = isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs);
+      if (fromOk && toOk) return [c];
+      if (fromOk) return [{ path: c.previousPath!, kind: "delete" }];
+      if (toOk) return [{ path: c.path, kind: "add" }];
+      return [];
+    }
+    return isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) ? [c] : [];
+  });
 }
 
 function changeSetFallback(root: string, session: Session): ChangeSetV1 {
@@ -1226,7 +1255,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   const at = new Date().toISOString();
 
   const before = readChangeSet(session.id);
-  const oldPaths = before ? Object.keys(before.changes) : [];
+  const oldPaths = before
+    ? Object.values(before.changes).flatMap((r) => (r.previousPath ? [r.path, r.previousPath] : [r.path]))
+    : [];
 
   updateChangeSet(session.id, changeSetFallback(root, session), (cs) => reconcileInto(cs, net, at));
 
@@ -1269,8 +1300,12 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   for (const p of oldPaths) {
     if (netPaths.has(p)) continue;
     try {
-      if (fs.existsSync(path.join(root, p))) upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
-      else removeMapEntry(p);
+      // Never read an ineligible departed path (secret/binary/etc.); just drop it.
+      if (fs.existsSync(path.join(root, p)) && isEligiblePath(root, p, cfg.extraSecretGlobs, cfg.excludeDirs)) {
+        upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
+      } else {
+        removeMapEntry(p);
+      }
     } catch {
       /* best effort */
     }

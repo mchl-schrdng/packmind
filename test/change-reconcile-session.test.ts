@@ -98,6 +98,21 @@ describe("[P1] reconcileSession (non-git manifest)", () => {
     expect(out.some((k) => k.includes("leak.ts"))).toBe(false); // symlink excluded
   });
 
+  it("a rename crossing the eligibility boundary transforms instead of dropping (git)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rsxb-"));
+    gitInit(dir);
+    write(dir, "a.ts", "A");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "init"]);
+
+    const baseline = createBaseline(dir, config, { incarnationId: "inc1" });
+    // Rename an eligible file to an ineligible one (binary ext).
+    execFileSync("git", ["-C", dir, "mv", "a.ts", "logo.png"]);
+
+    // Net must be a delete of the old path, not a rename and not an add of logo.png.
+    expect(kinds(dir, baseline)).toEqual(["delete a.ts"]);
+  });
+
   it("a file restored to baseline content is not a net change", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rsm2-"));
     write(dir, "a.ts", "A");

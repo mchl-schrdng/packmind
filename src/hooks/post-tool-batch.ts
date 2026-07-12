@@ -7,6 +7,8 @@ import {
   readStdin,
   sessionRawKey,
   readSessionFor,
+  hookConfig,
+  isEligiblePath,
   recordChangeCandidate,
   requestReconcile,
 } from "./runtime.js";
@@ -29,6 +31,7 @@ async function main(): Promise<void> {
   if (!session) process.exit(0);
 
   const root = projectRoot();
+  const cfg = hookConfig();
   const at = new Date().toISOString();
   const calls = Array.isArray(input.tool_calls) ? input.tool_calls : [];
   let needReconcile = false;
@@ -39,7 +42,11 @@ async function main(): Promise<void> {
       const fp = typeof c?.tool_input?.file_path === "string" ? c.tool_input.file_path : "";
       if (fp && confineToRoot(root, fp) !== null) {
         const rel = path.relative(root, path.resolve(root, fp)).split(path.sep).join("/");
-        recordChangeCandidate(root, session, { path: rel, kind: "modify" }, "post-tool", at, [name]);
+        // Same eligibility as post-write: never record a secret/binary/excluded/
+        // oversized/out-of-root path (which the repair loop would otherwise read).
+        if (isEligiblePath(root, rel, cfg.extraSecretGlobs, cfg.excludeDirs)) {
+          recordChangeCandidate(root, session, { path: rel, kind: "modify" }, "post-tool", at, [name]);
+        }
       }
     } else if (name) {
       // Bash / MCP writes / notebooks / agents / unknown may mutate the project.

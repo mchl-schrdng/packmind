@@ -159,6 +159,77 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("empty.ts");
   });
 
+  it("a secret file recorded via PostToolBatch is never read or mapped at Stop", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // A secret file (matches the built-in `credentials.*` glob) is written.
+    fs.writeFileSync(path.join(dir, "credentials.txt"), "// PACKMIND_AUDIT_SECRET_9f3c\nkey=abc\n");
+    // PostToolBatch sees the direct Write of it.
+    run(hooksDir, "post-tool-batch.js", { session_id: "S1", tool_calls: [{ tool_name: "Write", tool_input: { file_path: "credentials.txt" } }] }, dir);
+    // Stop reconciles + repairs departed paths - must NOT read the secret.
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    let map = "";
+    try { map = fs.readFileSync(brain(dir).map, "utf8"); } catch { /* no map written = clean */ }
+    expect(map).not.toContain("credentials.txt");
+    expect(map).not.toContain("PACKMIND_AUDIT_SECRET");
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["credentials.txt"]).toBeUndefined();
+  });
+
+  it("a reverted rename (a->b->a) leaves the map with the original path", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "a.ts"), "export const a = 1;\n");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    execFileSync("git", ["-C", dir, "mv", "a.ts", "b.ts"]);
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    let map = fs.readFileSync(brain(dir).map, "utf8");
+    expect(map).toContain("b.ts");
+
+    execFileSync("git", ["-C", dir, "mv", "b.ts", "a.ts"]); // revert
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    map = fs.readFileSync(brain(dir).map, "utf8");
+    expect(map).toContain("a.ts");
+    expect(map).not.toMatch(/`b\.ts`/); // b.ts entry gone
+  });
+
+  it("emits watchPaths for tracked eligible files in a clean git repo", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "a.ts"), "export const a = 1;\n");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    const out = execFileSync("node", [path.join(hooksDir, "session-start.js")], {
+      input: JSON.stringify({ session_id: "S1", source: "startup" }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir, PACKMIND_ROOT: dir },
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    const wp: string[] = JSON.parse(out).hookSpecificOutput?.watchPaths ?? [];
+    expect(wp.some((p) => p.endsWith(`${path.sep}a.ts`))).toBe(true); // clean repo still watches tracked files
+  });
+
+  it("FileChanged records an eligible watched change and ignores an ineligible one", () => {
+    const { dir, hooksDir } = gitProject();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "x.ts"), "export const x = 1;\n");
+    fs.writeFileSync(path.join(dir, "credentials.txt"), "secret");
+
+    run(hooksDir, "file-changed.js", { session_id: "S1", file_path: "src/x.ts", event: "add" }, dir);
+    run(hooksDir, "file-changed.js", { session_id: "S1", file_path: "credentials.txt", event: "add" }, dir);
+
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["src/x.ts"]?.sources).toContain("file-changed");
+    expect(cs.changes["credentials.txt"]).toBeUndefined(); // ineligible ignored
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

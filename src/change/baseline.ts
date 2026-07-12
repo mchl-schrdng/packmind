@@ -104,7 +104,18 @@ export function reconcileSession(root: string, config: Config, baseline: Baselin
     }
     net = computeNetChanges({ hashes: baseline.hashes }, { hashes: currentHashes });
   }
-  return net.filter(
-    (c) => isEligiblePath(root, c.path, config) && (!c.previousPath || isEligiblePath(root, c.previousPath, config)),
-  );
+  // Apply eligibility, transforming (not dropping) renames that cross the
+  // eligibility boundary: eligible->ineligible becomes a delete of the old path,
+  // ineligible->eligible becomes an add of the new path.
+  return net.flatMap((c): NetChange[] => {
+    if (c.kind === "rename") {
+      const fromOk = c.previousPath ? isEligiblePath(root, c.previousPath, config) : false;
+      const toOk = isEligiblePath(root, c.path, config);
+      if (fromOk && toOk) return [c];
+      if (fromOk) return [{ path: c.previousPath!, kind: "delete" }];
+      if (toOk) return [{ path: c.path, kind: "add" }];
+      return [];
+    }
+    return isEligiblePath(root, c.path, config) ? [c] : [];
+  });
 }

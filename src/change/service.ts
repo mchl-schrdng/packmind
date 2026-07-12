@@ -5,6 +5,7 @@ import { activeSessions } from "../state/session.js";
 import { upsertMapEntry, removeMapEntry } from "../state/map-mutations.js";
 import { enqueue } from "../recall/queue.js";
 import { createBaseline, readBaseline, writeBaseline, reconcileSession } from "./baseline.js";
+import { isEligiblePath } from "./eligible.js";
 import {
   readChangeSet,
   updateChangeSet,
@@ -61,7 +62,11 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
   // Capture the paths tracked BEFORE this reconcile, so paths that leave the net
   // (reverted to baseline) get their map/recall repaired to the current fs state.
   const before = readChangeSet(root, s.incarnationId);
-  const oldPaths = before ? Object.keys(before.changes) : [];
+  // Include rename previousPaths so a reverted rename (a->b->a) re-maps the
+  // original path, not just the intermediate one.
+  const oldPaths = before
+    ? Object.values(before.changes).flatMap((r) => (r.previousPath ? [r.path, r.previousPath] : [r.path]))
+    : [];
 
   const net = reconcileSession(root, config, baseline);
   const at = new Date().toISOString();
@@ -124,8 +129,14 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
     if (netPaths.has(p)) continue;
     const abs = path.join(root, p);
     try {
-      if (fs.existsSync(abs)) upsertMapEntry(root, p, readTextOr(abs, ""), config);
-      else removeMapEntry(root, p);
+      // Only read a departed path if it still exists AND is eligible - an
+      // ineligible path (secret/binary/etc.) is removed from the map without
+      // ever reading its content.
+      if (fs.existsSync(abs) && isEligiblePath(root, p, config)) {
+        upsertMapEntry(root, p, readTextOr(abs, ""), config);
+      } else {
+        removeMapEntry(root, p);
+      }
     } catch {
       /* best effort */
     }
