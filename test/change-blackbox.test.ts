@@ -181,6 +181,25 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(cs.changes["credentials.txt"]).toBeUndefined();
   });
 
+  it("a reverted rename (a->b->a) leaves the map with the original path", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "a.ts"), "export const a = 1;\n");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    execFileSync("git", ["-C", dir, "mv", "a.ts", "b.ts"]);
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    let map = fs.readFileSync(brain(dir).map, "utf8");
+    expect(map).toContain("b.ts");
+
+    execFileSync("git", ["-C", dir, "mv", "b.ts", "a.ts"]); // revert
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+    map = fs.readFileSync(brain(dir).map, "utf8");
+    expect(map).toContain("a.ts");
+    expect(map).not.toMatch(/`b\.ts`/); // b.ts entry gone
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

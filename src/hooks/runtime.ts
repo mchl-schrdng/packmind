@@ -1189,7 +1189,18 @@ export function reconcileGitSession(root: string, baseline: BaselineV1, extraSec
     if (fp) overlap[rel] = fp;
   }
   const net = reconcileGit({ status: baseline.status ?? { changed: [], renames: [] }, hashes: baseline.hashes }, { status: current, hashes: overlap });
-  return net.filter((c) => isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) && (!c.previousPath || isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs)));
+  // Transform renames that cross the eligibility boundary (mirror of baseline.ts).
+  return net.flatMap((c): NetChange[] => {
+    if (c.kind === "rename") {
+      const fromOk = c.previousPath ? isEligiblePath(root, c.previousPath, extraSecretGlobs, excludeDirs) : false;
+      const toOk = isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs);
+      if (fromOk && toOk) return [c];
+      if (fromOk) return [{ path: c.previousPath!, kind: "delete" }];
+      if (toOk) return [{ path: c.path, kind: "add" }];
+      return [];
+    }
+    return isEligiblePath(root, c.path, extraSecretGlobs, excludeDirs) ? [c] : [];
+  });
 }
 
 function changeSetFallback(root: string, session: Session): ChangeSetV1 {
@@ -1226,7 +1237,9 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   const at = new Date().toISOString();
 
   const before = readChangeSet(session.id);
-  const oldPaths = before ? Object.keys(before.changes) : [];
+  const oldPaths = before
+    ? Object.values(before.changes).flatMap((r) => (r.previousPath ? [r.path, r.previousPath] : [r.path]))
+    : [];
 
   updateChangeSet(session.id, changeSetFallback(root, session), (cs) => reconcileInto(cs, net, at));
 

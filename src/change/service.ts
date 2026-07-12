@@ -62,7 +62,11 @@ export function reconcileAndSync(root: string, config: Config, s: ResolvedSessio
   // Capture the paths tracked BEFORE this reconcile, so paths that leave the net
   // (reverted to baseline) get their map/recall repaired to the current fs state.
   const before = readChangeSet(root, s.incarnationId);
-  const oldPaths = before ? Object.keys(before.changes) : [];
+  // Include rename previousPaths so a reverted rename (a->b->a) re-maps the
+  // original path, not just the intermediate one.
+  const oldPaths = before
+    ? Object.values(before.changes).flatMap((r) => (r.previousPath ? [r.path, r.previousPath] : [r.path]))
+    : [];
 
   const net = reconcileSession(root, config, baseline);
   const at = new Date().toISOString();
