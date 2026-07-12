@@ -82,10 +82,21 @@ export function eligibleWalk(root: string, config: Config): string[] {
 
 /** Content fingerprint of a file, or null if it can't be read (e.g. deleted). */
 export function fingerprint(abs: string): string | null {
+  // Open with O_NOFOLLOW so a symlink final component fails to open atomically -
+  // no lstat-then-read TOCTOU. Reading from the fd hashes exactly what we opened.
+  let fd: number | undefined;
   try {
-    if (fs.lstatSync(abs).isSymbolicLink()) return null; // never fingerprint through a symlink
-    return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
+    fd = fs.openSync(abs, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    return crypto.createHash("sha1").update(fs.readFileSync(fd)).digest("hex");
   } catch {
     return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
   }
 }

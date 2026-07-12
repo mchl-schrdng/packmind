@@ -916,11 +916,22 @@ const CHANGE_MAX_SIZE = 1_048_576;
 const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 128) || "unknown";
 
 export function fingerprint(abs: string): string | null {
+  // O_NOFOLLOW: a symlink final component fails to open atomically (no
+  // lstat-then-read TOCTOU); the fd is what we hash. Mirror of change/eligible.ts.
+  let fd: number | undefined;
   try {
-    if (fs.lstatSync(abs).isSymbolicLink()) return null; // never fingerprint through a symlink
-    return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
+    fd = fs.openSync(abs, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    return crypto.createHash("sha1").update(fs.readFileSync(fd)).digest("hex");
   } catch {
     return null;
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        /* already closed */
+      }
+    }
   }
 }
 export function isEligiblePath(root: string, rel: string, extraSecretGlobs: string[], excludeDirs: string[]): boolean {
