@@ -7,6 +7,7 @@ import { brain } from "../src/state/files.js";
 import { DEFAULT_CONFIG } from "../src/state/schema.js";
 import { readSessionRecord, sessionFile } from "../src/state/session.js";
 import { readLedger } from "../src/cost/ledger.js";
+import { parseMap } from "../src/state/formats.js";
 
 /**
  * Black-box tests: run the COMPILED CommonJS hooks (dist/hooks/*.js) with real
@@ -145,5 +146,21 @@ describe.skipIf(!built)("[P1] black-box session lifecycle (compiled hooks)", () 
 
     const rec = readSessionRecord(dir, "S1")!;
     expect(rec.writes).toHaveLength(N); // every locked update landed
+  });
+
+  it("concurrent post-write hooks do not lose map.md entries (locked RMW)", async () => {
+    const { dir, hooksDir } = setup();
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    const N = 15;
+    await Promise.all(
+      Array.from({ length: N }, (_, i) =>
+        runAsync(hooksDir, "post-write.js", { ...writeFile(dir, `src/f${i}.ts`, `export const f${i} = ${i};`), session_id: "S1" }, dir),
+      ),
+    );
+
+    let count = 0;
+    for (const [, list] of parseMap(fs.readFileSync(brain(dir).map, "utf8"))) count += list.length;
+    expect(count).toBe(N); // no lost map entries under contention
   });
 });
