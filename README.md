@@ -128,9 +128,10 @@ make updates appear quickly, and reconciliation establishes correctness.
   and reconcile fully via that manifest when you run `packmind reconcile` or
   `packmind maintain`. (`packmind changes` is read-only - it displays the last
   reconciled set without recomputing.)
-- Only **eligible** files are tracked - the same gitignore, secret, binary, size,
-  and `map.maxFiles` rules as the project map. Ignored, secret, binary, oversized,
-  and out-of-root files never enter the change set.
+- Only **eligible** files are tracked - the same secret, binary, size, and
+  (in git projects) gitignore rules as the project map; non-git manifest walks are
+  additionally bounded by `map.maxFiles`. Ignored, secret, binary, oversized,
+  symlinked-out-of-root, and out-of-root files never enter the change set.
 - External-edit watching (`FileChanged`) depends on the host emitting watch paths;
   **reconciliation, not file watching, is the completeness mechanism**, so PackMind
   never claims to watch every possible future file or to prevent a change that a
@@ -150,8 +151,10 @@ tool call).
 | `PreToolUse: Write/Edit/MultiEdit` | `pre-write.js` | Before a write: evaluates the guardrail policy (warn, or hard-block secrets/rules when enabled), surfaces relevant recorded solutions and `knowledge.md` never-do notes, and emits the lean-mode reuse nudge. |
 | `PostToolUse: Read` | `post-read.js` | After a read: reconciles the token and cost accounting for that file. |
 | `PostToolUse: Write/Edit/MultiEdit` | `post-write.js` | After a write: refreshes the file's `map.md` entry, appends to the journal, updates accounting, queues the file for recall re-embedding, and nudges after repeated edits to the same file. |
-| `Stop` | `stop.js` | End of each turn: folds the session's cumulative usage into the lifetime ledger, refreshes the handoff note, and emits at-most-once reminders. |
-| `SessionEnd` | `session-end.js` | When a session ends: folds into the ledger, then on a terminal end removes the live session file and refreshes the handoff; on `resume` it suspends and keeps the file. |
+| `PostToolBatch` | `post-tool-batch.js` | After a batch of (possibly parallel) tool calls: coalesces direct writes into change candidates and flags a reconcile when Bash, a file-writing MCP tool, or an unknown tool ran. Inspects tool names/inputs only, never the tool response. |
+| `FileChanged` | `file-changed.js` | A watched file changed on disk (add/change/unlink) outside the direct tools: records an eligible, in-root change candidate. Fires for the paths `SessionStart` emits via `watchPaths`. |
+| `Stop` | `stop.js` | End of each turn: reconciles the net change set (git), syncs map + recall, folds usage into the lifetime ledger, refreshes the handoff, and emits at-most-once reminders. |
+| `SessionEnd` | `session-end.js` | When a session ends: a final reconcile, folds into the ledger, then on a terminal end removes the live session file and refreshes the handoff; on `resume` it suspends and keeps the file. |
 
 ## MCP tools
 
