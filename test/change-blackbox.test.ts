@@ -200,6 +200,21 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(map).not.toMatch(/`b\.ts`/); // b.ts entry gone
   });
 
+  it("emits watchPaths for tracked eligible files in a clean git repo", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "a.ts"), "export const a = 1;\n");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    const out = execFileSync("node", [path.join(hooksDir, "session-start.js")], {
+      input: JSON.stringify({ session_id: "S1", source: "startup" }),
+      env: { ...process.env, CLAUDE_PROJECT_DIR: dir, PACKMIND_ROOT: dir },
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    const wp: string[] = JSON.parse(out).hookSpecificOutput?.watchPaths ?? [];
+    expect(wp.some((p) => p.endsWith(`${path.sep}a.ts`))).toBe(true); // clean repo still watches tracked files
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

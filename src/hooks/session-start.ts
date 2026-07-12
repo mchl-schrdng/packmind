@@ -19,6 +19,7 @@ import {
   emptyLedger,
   hookConfig,
   isGitRepo,
+  gitWatchPaths,
   createBaselineGit,
   createBaselineManifest,
   writeBaseline,
@@ -132,8 +133,14 @@ async function main(): Promise<void> {
   let watchPaths: string[] = [];
   if (recordId) {
     try {
-      const bl = readBaseline(recordId);
-      if (bl) watchPaths = Object.keys(bl.hashes).slice(0, 1000).map((rel) => path.join(projectRoot(), rel));
+      const r2 = projectRoot();
+      // Git: tracked, non-ignored, eligible files (the baseline only fingerprints
+      // dirty paths, so a clean repo would otherwise watch nothing). Non-git: the
+      // manifest baseline's eligible files.
+      const rels = isGitRepo(r2)
+        ? gitWatchPaths(r2, cfg.extraSecretGlobs, cfg.excludeDirs, 1000)
+        : Object.keys(readBaseline(recordId)?.hashes ?? {}).slice(0, 1000);
+      watchPaths = rels.map((rel) => path.join(r2, rel));
     } catch {
       /* watchPaths is optional */
     }

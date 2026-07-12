@@ -1006,6 +1006,24 @@ export function gitStatus(root: string): PorcelainStatus | null {
   }
 }
 
+/** Bounded list of tracked, non-ignored, eligible files for FileChanged watchPaths. */
+export function gitWatchPaths(root: string, extraSecretGlobs: string[], excludeDirs: string[], cap: number): string[] {
+  try {
+    const out = execFileSync("git", ["-C", root, "ls-files", "-z"], {
+      encoding: "utf8", timeout: 5000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"],
+    });
+    const rels: string[] = [];
+    for (const rel of out.split("\0")) {
+      if (!rel) continue;
+      if (isEligiblePath(root, rel, extraSecretGlobs, excludeDirs)) rels.push(rel);
+      if (rels.length >= cap) break;
+    }
+    return rels;
+  } catch {
+    return [];
+  }
+}
+
 export function computeNetChanges(baseline: Snapshot, current: Snapshot): NetChange[] {
   const out: NetChange[] = [];
   const handled = new Set<string>();
