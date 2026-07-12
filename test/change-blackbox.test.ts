@@ -159,6 +159,28 @@ describe.skipIf(!built)("[P1] change-intelligence: SessionStart creates a git ba
     expect(fs.readFileSync(brain(dir).map, "utf8")).toContain("empty.ts");
   });
 
+  it("a secret file recorded via PostToolBatch is never read or mapped at Stop", () => {
+    const { dir, hooksDir } = gitProject();
+    fs.writeFileSync(path.join(dir, "seed.ts"), "seed");
+    execFileSync("git", ["-C", dir, "add", "."]);
+    execFileSync("git", ["-C", dir, "commit", "-qm", "seed"]);
+    run(hooksDir, "session-start.js", { session_id: "S1", source: "startup" }, dir);
+
+    // A secret file (matches the built-in `credentials.*` glob) is written.
+    fs.writeFileSync(path.join(dir, "credentials.txt"), "// PACKMIND_AUDIT_SECRET_9f3c\nkey=abc\n");
+    // PostToolBatch sees the direct Write of it.
+    run(hooksDir, "post-tool-batch.js", { session_id: "S1", tool_calls: [{ tool_name: "Write", tool_input: { file_path: "credentials.txt" } }] }, dir);
+    // Stop reconciles + repairs departed paths - must NOT read the secret.
+    run(hooksDir, "stop.js", { session_id: "S1" }, dir);
+
+    let map = "";
+    try { map = fs.readFileSync(brain(dir).map, "utf8"); } catch { /* no map written = clean */ }
+    expect(map).not.toContain("credentials.txt");
+    expect(map).not.toContain("PACKMIND_AUDIT_SECRET");
+    const cs = JSON.parse(fs.readFileSync(path.join(brain(dir).changeSetDir, jsonFiles(brain(dir).changeSetDir)[0]), "utf8"));
+    expect(cs.changes["credentials.txt"]).toBeUndefined();
+  });
+
   it("Stop reconciles an external deletion and removes it from the map", () => {
     const { dir, hooksDir } = gitProject();
     fs.writeFileSync(path.join(dir, "doomed.ts"), "bye");

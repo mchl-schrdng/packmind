@@ -1269,8 +1269,12 @@ export function reconcileAndSync(root: string, session: Session, cfg: HookConfig
   for (const p of oldPaths) {
     if (netPaths.has(p)) continue;
     try {
-      if (fs.existsSync(path.join(root, p))) upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
-      else removeMapEntry(p);
+      // Never read an ineligible departed path (secret/binary/etc.); just drop it.
+      if (fs.existsSync(path.join(root, p)) && isEligiblePath(root, p, cfg.extraSecretGlobs, cfg.excludeDirs)) {
+        upsertMapEntry(p, readText(path.join(root, p), ""), cfg.model, cfg.prices);
+      } else {
+        removeMapEntry(p);
+      }
     } catch {
       /* best effort */
     }
