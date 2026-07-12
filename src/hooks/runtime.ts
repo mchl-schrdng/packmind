@@ -903,6 +903,7 @@ const safeId = (id: string): string => id.replace(/[^A-Za-z0-9_-]/g, "-").slice(
 
 export function fingerprint(abs: string): string | null {
   try {
+    if (fs.lstatSync(abs).isSymbolicLink()) return null; // never fingerprint through a symlink
     return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
   } catch {
     return null;
@@ -920,6 +921,8 @@ export function isEligiblePath(root: string, rel: string, extraSecretGlobs: stri
   const base = segments[segments.length - 1];
   if (CHANGE_BINARY_EXT.has(path.extname(base).toLowerCase())) return false;
   if (looksSecret(base, extraSecretGlobs, posix)) return false;
+  // Symlink-aware confinement: reject a path whose real location escapes root.
+  if (confineToRoot(root, rel) === null) return false;
   try {
     const st = fs.statSync(path.join(root, rel));
     if (st.isFile() && st.size > CHANGE_MAX_SIZE) return false;

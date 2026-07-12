@@ -80,6 +80,24 @@ describe("[P1] reconcileSession (non-git manifest)", () => {
     expect(kinds(dir, baseline)).toEqual(["modify src/ok.ts"]);
   });
 
+  it("never includes an in-project symlink pointing outside the root (git)", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rssym-"));
+    const dir = path.join(base, "proj");
+    fs.mkdirSync(dir);
+    gitInit(dir);
+    const outside = path.join(base, "external-secret.txt");
+    fs.writeFileSync(outside, "// external content\n");
+
+    const baseline = createBaseline(dir, config, { incarnationId: "inc1" });
+    // Add an in-project symlink to the external file after the baseline.
+    fs.symlinkSync(outside, path.join(dir, "leak.ts"));
+    write(dir, "real.ts", "ok");
+
+    const out = kinds(dir, baseline);
+    expect(out).toContain("add real.ts");
+    expect(out.some((k) => k.includes("leak.ts"))).toBe(false); // symlink excluded
+  });
+
   it("a file restored to baseline content is not a net change", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rsm2-"));
     write(dir, "a.ts", "A");

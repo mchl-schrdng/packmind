@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
 import { looksSecret } from "../guard/secrets.js";
+import { confineToRoot } from "../guard/path-guard.js";
 import { BINARY_EXT } from "../state/walk.js";
 import type { Config } from "../state/schema.js";
 
@@ -31,6 +32,11 @@ export function isEligiblePath(root: string, rel: string, config: Config): boole
   if (BINARY_EXT.has(path.extname(base).toLowerCase())) return false;
   if (looksSecret(base, config.map.extraSecretGlobs, posix)) return false;
 
+  // Symlink-aware confinement: reject a path whose REAL location (following
+  // symlinks) escapes the project root, so an in-project symlink can't leak
+  // external content into the change set / map / recall.
+  if (confineToRoot(root, rel) === null) return false;
+
   try {
     const st = fs.statSync(path.join(root, rel));
     if (st.isFile() && st.size > MAX_SIZE) return false;
@@ -43,6 +49,7 @@ export function isEligiblePath(root: string, rel: string, config: Config): boole
 /** Content fingerprint of a file, or null if it can't be read (e.g. deleted). */
 export function fingerprint(abs: string): string | null {
   try {
+    if (fs.lstatSync(abs).isSymbolicLink()) return null; // never fingerprint through a symlink
     return crypto.createHash("sha1").update(fs.readFileSync(abs)).digest("hex");
   } catch {
     return null;
