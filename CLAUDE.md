@@ -19,8 +19,11 @@ an MCP server. Published to npm as `packmind` (Apache-2.0).
 
 ## Architecture (`src/`)
 - `bin/`, `cli/` - entrypoint and one file per command (`init`, `scan`, `status`,
-  `insights`, `recall-cmd`, `backup-cmd`, `maintain-cmd`, `doctor`, `mcp-cmd`, …).
-- `hooks/` - the 7 standalone lifecycle hooks + `runtime.ts` (see rules below).
+  `insights`, `recall-cmd`, `backup-cmd`, `maintain-cmd`, `resume-cmd`, `doctor`
+  (with `--fix`), `mcp-cmd`, …).
+- `hooks/` - the standalone lifecycle hooks (session-start/end, pre/post read
+  and write, prompt-submit, stop, stop-failure, post-tool-batch, file-changed)
+  + `runtime.ts` (see rules below).
 - `mcp/` - MCP stdio server (`server.ts`) and tool handlers (`tools.ts`).
 - `state/` - `formats.ts` (CRLF-safe map/knowledge parsers), `schema.ts` (config
   + deep-merge), `mapper.ts` (the file map), `snapshot.ts` (backup/restore),

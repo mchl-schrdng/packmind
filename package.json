@@ -1,6 +1,6 @@
 {
   "name": "packmind",
-  "version": "0.9.2",
+  "version": "1.0.0",
   "description": "A local second brain for Claude Code: project memory across sessions, fewer repeated reads, safe resume of rate-limited sessions.",
   "type": "module",
   "bin": {
