@@ -42,10 +42,12 @@ export function createProgram(): Command {
 
   program
     .command("maintain")
-    .description("One-shot upkeep (scan, reindex, archive journal, prune backups) - cron-friendly")
-    .option("--quiet", "Suppress output (for unattended/cron runs)")
-    .option("--keep-backups <n>", "How many backups to keep (default 10)")
-    .action((o) => runMaintain(o));
+    .description("One-shot upkeep (reconcile, scan, recall queue, archive journal, prune) - safe under cron")
+    .option("--quiet", "Suppress success output (errors still go to stderr)")
+    .option("--keep-backups <n>", "How many backups to keep, 1-1000 (default 10)")
+    .action(async (o) => {
+      process.exitCode = await runMaintain(o);
+    });
 
   program
     .command("resume")
