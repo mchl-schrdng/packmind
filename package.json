@@ -1,6 +1,6 @@
 {
   "name": "packmind",
-  "version": "2.0.0",
+  "version": "1.0.1",
   "description": "Resume rate-limited Claude Code sessions and share a committed project memory Claude reads automatically.",
   "type": "module",
   "bin": {
