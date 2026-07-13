@@ -4,14 +4,9 @@ import chalk from "chalk";
 import { readJsonOr } from "../util/fs-atomic.js";
 import { loadConfig } from "../state/schema.js";
 import { brain } from "../state/files.js";
-import { buildHookMap } from "../adapters/claude-code.js";
+import { buildHookMap, HOOK_SCRIPTS } from "../adapters/claude-code.js";
 import { pruneRegistry } from "./registry.js";
 import { maintainLockDir } from "./maintain-cmd.js";
-
-const HOOK_SCRIPTS = [
-  "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
-  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
-];
 
 export function runDoctor(opts: { fix?: boolean } = {}): void {
   console.log(chalk.bold.cyan("\nPackMind doctor\n"));

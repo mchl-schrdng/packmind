@@ -5,7 +5,7 @@ import { findRoot, isHome } from "../state/project.js";
 import { brain } from "../state/files.js";
 import { loadConfig } from "../state/schema.js";
 import { scanProject } from "../state/mapper.js";
-import { registerHooks, registerMcp } from "../adapters/claude-code.js";
+import { registerHooks, registerMcp, HOOK_SCRIPTS } from "../adapters/claude-code.js";
 import { writeEffective } from "../guard/practices.js";
 import { ensureDir } from "../util/paths.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
@@ -13,10 +13,6 @@ import { registerProject } from "./registry.js";
 import { seedBrainFiles } from "./seed.js";
 
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
-const HOOK_SCRIPTS = [
-  "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
-  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
-];
 
 function copy(src: string, dest: string): void {
   if (fs.existsSync(src)) fs.writeFileSync(dest, fs.readFileSync(src));

@@ -12,6 +12,18 @@ import { onWindows } from "../util/platform.js";
 export const MANAGED_BY = "packmind";
 const HOOKS = "$CLAUDE_PROJECT_DIR/.packmind/hooks";
 
+/**
+ * Canonical list of the hook scripts shipped into .packmind/hooks. init,
+ * update, and doctor all consume THIS list - never duplicate it: a script
+ * registered by buildHookMap but missing here would be registered in
+ * settings.json yet never copied, and the guarded command turns that into a
+ * silent no-op (the 0.9.2 -> 1.0.0 upgrade bug).
+ */
+export const HOOK_SCRIPTS = [
+  "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
+  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
+];
+
 interface HookCmd {
   type: "command";
   command: string;
