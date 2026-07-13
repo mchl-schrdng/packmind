@@ -15,6 +15,7 @@ import { runMcp } from "./mcp-cmd.js";
 import { runDashboard } from "./dashboard-cmd.js";
 import { runInsights } from "./insights-cmd.js";
 import { runMaintain } from "./maintain-cmd.js";
+import { runResume } from "./resume-cmd.js";
 import { runBackup, runRestore } from "./backup-cmd.js";
 import { runDebt } from "./debt-cmd.js";
 import { runChanges, runReconcile } from "./changes-cmd.js";
@@ -45,6 +46,15 @@ export function createProgram(): Command {
     .option("--quiet", "Suppress output (for unattended/cron runs)")
     .option("--keep-backups <n>", "How many backups to keep (default 10)")
     .action((o) => runMaintain(o));
+
+  program
+    .command("resume")
+    .description("Resume a rate-limited Claude Code session (claude --resume <session-id>)")
+    .option("--session <id>", "Which session to resume (required when several tickets exist)")
+    .option("--wait", "Wait in the foreground until the recorded reset time, then launch")
+    .action(async (o) => {
+      process.exitCode = await runResume(o);
+    });
 
   program
     .command("backup")
