@@ -34,18 +34,17 @@ export function readTicket(root: string, sessionId: string): ResumeTicketV1 | nu
   return readJsonOr<ResumeTicketV1 | null>(ticketFile(root, sessionId), null);
 }
 
-export function listTickets(root: string): Array<{ file: string; ticket: ResumeTicketV1 }> {
+export function listTickets(root: string): ResumeTicketV1[] {
   let names: string[];
   try {
     names = fs.readdirSync(ticketsDir(root)).filter((n) => n.endsWith(".json"));
   } catch {
     return [];
   }
-  const out: Array<{ file: string; ticket: ResumeTicketV1 }> = [];
+  const out: ResumeTicketV1[] = [];
   for (const n of names) {
-    const file = path.join(ticketsDir(root), n);
-    const t = readJsonOr<ResumeTicketV1 | null>(file, null);
-    if (t && t.version === 1 && typeof t.sessionId === "string") out.push({ file, ticket: t });
+    const t = readJsonOr<ResumeTicketV1 | null>(path.join(ticketsDir(root), n), null);
+    if (t && t.version === 1 && typeof t.sessionId === "string") out.push(t);
   }
   return out;
 }

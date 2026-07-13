@@ -76,9 +76,9 @@ describe("resume ticket store", () => {
     const root = tmpRoot();
     blockTicket(root, "a", NOW);
     blockTicket(root, "b", NOW);
-    expect(listTickets(root).map((e) => e.ticket.sessionId).sort()).toEqual(["a", "b"]);
+    expect(listTickets(root).map((t) => t.sessionId).sort()).toEqual(["a", "b"]);
     removeTicket(root, "a");
-    expect(listTickets(root).map((e) => e.ticket.sessionId)).toEqual(["b"]);
+    expect(listTickets(root).map((t) => t.sessionId)).toEqual(["b"]);
     expect(listTickets(tmpRoot())).toEqual([]); // no dir -> empty
   });
 });

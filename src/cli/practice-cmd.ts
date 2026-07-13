@@ -8,7 +8,7 @@ import { evaluateWrite, globToRe } from "../guard/policy.js";
 
 /** List the bundled practice packs, marking the ones active in this project. */
 export function runPracticeList(): void {
-  const { projectRoot, config } = requireProject();
+  const { config } = requireProject();
   const active = new Set(config.guard.practices ?? []);
   const packs = listPacks();
   console.log(chalk.bold.cyan(`\nPractice packs (${active.size} active)\n`));

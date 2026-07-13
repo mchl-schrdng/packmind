@@ -83,7 +83,7 @@ export function runDoctor(opts: { fix?: boolean } = {}): void {
     // Orphaned resume launches: `packmind resume` killed hard (or a machine
     // reboot) leaves a ticket in `launching`, which refuses every retry.
     // Only --fix resets one, and only after the same 6h crash window.
-    for (const { ticket } of listTickets(p.root)) {
+    for (const ticket of listTickets(p.root)) {
       if (ticket.status !== "launching") continue;
       const age = Date.now() - Date.parse(ticket.updatedAt ?? "");
       const stale = Number.isFinite(age) && age > 6 * 60 * 60 * 1000;

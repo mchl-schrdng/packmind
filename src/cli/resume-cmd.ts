@@ -106,7 +106,7 @@ export async function runResume(
   const deps: ResumeDeps = { ...realDeps(), ...depsOverride };
   const { projectRoot } = requireProject();
 
-  const picked = selectTicket(listTickets(projectRoot).map((e) => e.ticket), opts.session);
+  const picked = selectTicket(listTickets(projectRoot), opts.session);
   if ("error" in picked) {
     deps.err(`✗ ${picked.error}`);
     return 1;
