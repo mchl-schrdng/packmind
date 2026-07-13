@@ -12,6 +12,63 @@ export function makeContext(projectRoot: string): ToolContext {
   return { projectRoot, config: loadConfig(brain(projectRoot).config) };
 }
 
+function keywords(text: string): string[] {
+  return text.toLowerCase().match(/[a-z0-9_]{3,}/g) ?? [];
+}
+
+interface RecallDoc {
+  source: string;
+  text: string;
+}
+
+/** Every searchable memory snippet: solutions, knowledge bullets, the handoff. */
+function recallCorpus(root: string): RecallDoc[] {
+  const b = brain(root);
+  const docs: RecallDoc[] = [];
+  for (const s of readJsonOr<Solution[]>(b.solutions, [])) {
+    const text = [s.error, s.cause && `cause: ${s.cause}`, s.fix && `fix: ${s.fix}`, s.tags?.length && `tags: ${s.tags.join(", ")}`]
+      .filter(Boolean)
+      .join(" | ");
+    docs.push({ source: `solutions/${s.id}`, text });
+  }
+  let section = "";
+  for (const line of readTextOr(b.knowledge).split(/\r?\n/)) {
+    const h = line.match(/^##\s+(.+?)\s*$/);
+    if (h) {
+      section = h[1];
+      continue;
+    }
+    const m = line.match(/^[-*]\s+(.+?)\s*$/);
+    if (m) docs.push({ source: `knowledge/${section || "notes"}`, text: m[1] });
+  }
+  const handoff = readTextOr(b.handoff).trim();
+  if (handoff) docs.push({ source: "handoff", text: handoff.slice(0, 1200) });
+  return docs;
+}
+
+/**
+ * Lexical recall over the brain files (knowledge.md, solutions.json,
+ * handoff.md). Keyword-overlap ranking - deliberately simple: the corpus is
+ * a curated memory, not a codebase, so exact vocabulary carries the signal.
+ */
+export function toolRecall(ctx: ToolContext, query: string): string {
+  const kws = new Set(keywords(query));
+  if (kws.size === 0) return "No relevant memory found for that query.";
+  const hits = recallCorpus(ctx.projectRoot)
+    .map((d) => {
+      const hay = keywords(d.text);
+      const overlap = new Set(hay.filter((w) => kws.has(w))).size;
+      return { d, overlap };
+    })
+    .filter((x) => x.overlap >= Math.min(2, kws.size))
+    .sort((a, b) => b.overlap - a.overlap)
+    .slice(0, 6);
+  if (hits.length === 0) return "No relevant memory found for that query.";
+  return hits
+    .map(({ d }, i) => `${i + 1}. [${d.source}]\n${d.text.slice(0, 600)}`)
+    .join("\n\n");
+}
+
 export function toolRemember(ctx: ToolContext, note: string, kind = "Notes"): string {
   if (!note.trim()) return "Nothing to remember (empty note).";
   const heading = ["Preferences", "Decisions", "Never Do", "Notes", "Debt"].includes(kind) ? kind : "Notes";

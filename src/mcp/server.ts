@@ -6,12 +6,22 @@ import { pkgVersion } from "../cli/locate.js";
 import {
   makeContext,
   isInitialized,
+  toolRecall,
   toolRemember,
   toolRecordSolution,
   toolHandoff,
 } from "./tools.js";
 
 const TOOLS = [
+  {
+    name: "recall",
+    description: "Search PackMind's committed project memory (knowledge, solutions, handoff). Use before investigating or re-deriving anything.",
+    inputSchema: {
+      type: "object",
+      properties: { query: { type: "string", description: "What to search for" } },
+      required: ["query"],
+    },
+  },
   {
     name: "remember",
     description: "Record a durable preference, decision, never-do rule, or note into project knowledge.",
@@ -74,6 +84,8 @@ async function main(): Promise<void> {
     try {
       const ctx = makeContext(projectRoot);
       switch (req.params.name) {
+        case "recall":
+          return text(toolRecall(ctx, String(a.query ?? "")));
         case "remember":
           return text(toolRemember(ctx, String(a.note ?? ""), a.kind));
         case "record_solution":
