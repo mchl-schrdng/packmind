@@ -647,6 +647,78 @@ export function updateSession(rawKey: string, fn: (s: Session) => void): void {
   });
 }
 
+// --- resume tickets (rate-limited session recovery) ---------------------------
+/** Mirror of src/state/resume.ts's ResumeTicketV1 (hooks are zero-dep). */
+export interface ResumeTicket {
+  version: 1;
+  sessionId: string;
+  status: "blocked" | "launching" | "resumed";
+  createdAt: string;
+  updatedAt: string;
+  resetAt?: string;
+  reconcileRequested: boolean;
+}
+
+/** Same hashing as src/state/resume.ts ticketFile - pinned by tests. */
+export function resumeTicketFile(sessionId: string): string {
+  const hash = crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 16);
+  return brainPath("state", "resume-tickets", `${hash}.json`);
+}
+
+/**
+ * Extract a rate-limit reset time ONLY when the payload clearly carries one:
+ * an ISO/parseable `reset_at`-style string, or a positive numeric
+ * `retry_after` in seconds. Anything ambiguous returns undefined - a reset
+ * time is never invented. (The official StopFailure docs define no such
+ * field, so this is purely opportunistic.)
+ */
+export function extractResetAt(input: Record<string, any>, nowMs: number): string | undefined {
+  for (const key of ["reset_at", "resetAt", "rate_limit_reset_at", "usage_limit_reset_at"]) {
+    const v = input?.[key];
+    if (typeof v === "string" && v.trim()) {
+      const ms = Date.parse(v);
+      if (Number.isFinite(ms) && ms > 0) return new Date(ms).toISOString();
+    }
+  }
+  for (const key of ["retry_after", "retry_after_seconds", "retryAfterSeconds"]) {
+    const v = input?.[key];
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      return new Date(nowMs + v * 1000).toISOString();
+    }
+  }
+  return undefined;
+}
+
+/** Create-or-reset the session's ticket to blocked (StopFailure rate_limit). */
+export function blockResumeTicket(sessionId: string, now: string, resetAt?: string): void {
+  updateJson<ResumeTicket | null>(resumeTicketFile(sessionId), null, (prev) => {
+    const kept = resetAt ?? prev?.resetAt;
+    return {
+      version: 1,
+      sessionId,
+      status: "blocked",
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: now,
+      ...(kept ? { resetAt: kept } : {}),
+      reconcileRequested: true,
+    };
+  });
+}
+
+/** SessionStart saw the session again: mark resumed, then drop the ticket. */
+export function clearResumeTicket(sessionId: string, now: string): void {
+  const file = resumeTicketFile(sessionId);
+  if (!fs.existsSync(file)) return;
+  updateJson<ResumeTicket | null>(file, null, (t) =>
+    t ? { ...t, status: "resumed", updatedAt: now } : t,
+  );
+  try {
+    fs.rmSync(file, { force: true });
+  } catch {
+    /* best effort */
+  }
+}
+
 // --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------
 interface LedgerRow {
   id: string;
