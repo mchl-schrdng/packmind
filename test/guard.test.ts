@@ -24,6 +24,19 @@ describe("path guard", () => {
     expect(samePath("/p", "util/a.ts", "src/util/a.ts")).toBe(false);
     expect(samePath("/p", "./src/a.ts", "src/a.ts")).toBe(true);
   });
+  it("accepts an absolute path that reaches the project through an aliased ancestor", () => {
+    // Same on-disk location, different string prefix: an alias symlink to the
+    // project (the portable equivalent of a case-aliased path on macOS). The
+    // guard must confine by real location, not string prefix, or every rule
+    // silently fails open for such paths.
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-alias-"));
+    const project = path.join(base, "project");
+    fs.mkdirSync(project);
+    const alias = path.join(base, "alias");
+    fs.symlinkSync(project, alias, "dir");
+    const confined = confineToRoot(project, path.join(alias, ".env"));
+    expect(confined).toBe(path.join(fs.realpathSync(project), ".env"));
+  });
   it("rejects a lexically-in-root path whose real ancestor is a symlink out of root", () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-sym-"));
     const project = path.join(base, "project");
@@ -34,8 +47,8 @@ describe("path guard", () => {
     fs.symlinkSync(outside, path.join(project, "link"));
     // A write under the symlink would land in `outside` - must be refused.
     expect(confineToRoot(project, "link/CLAUDE.md")).toBeNull();
-    // A genuine in-root path is still accepted.
-    expect(confineToRoot(project, "src/a.ts")).toBe(path.join(project, "src", "a.ts"));
+    // A genuine in-root path is still accepted (returned in canonical form).
+    expect(confineToRoot(project, "src/a.ts")).toBe(path.join(fs.realpathSync(project), "src", "a.ts"));
   });
 });
 

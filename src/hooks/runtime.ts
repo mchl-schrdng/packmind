@@ -160,33 +160,28 @@ export function looksSecret(file: string, extra: string[] = [], relPath?: string
 }
 
 // --- path guard (mirror of guard/path-guard.ts) -----------------------------
-function realWithinRoot(base: string, target: string): boolean {
-  let realBase: string;
-  try {
-    realBase = fs.realpathSync(base);
-  } catch {
-    return true;
-  }
-  let cur = target;
+function canonicalize(p: string): string {
+  let cur = p;
+  let suffix = "";
   for (;;) {
     try {
       const real = fs.realpathSync(cur);
-      const rel = path.relative(realBase, real);
-      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+      return suffix ? path.join(real, suffix) : real;
     } catch {
       const parent = path.dirname(cur);
-      if (parent === cur) return true;
+      if (parent === cur) return p;
+      suffix = suffix ? path.join(path.basename(cur), suffix) : path.basename(cur);
       cur = parent;
     }
   }
 }
 export function confineToRoot(root: string, candidate: string): string | null {
-  const base = path.resolve(root);
+  const base = canonicalize(path.resolve(root));
   const resolved = path.isAbsolute(candidate) ? path.resolve(candidate) : path.resolve(base, candidate);
-  const rel = path.relative(base, resolved);
+  const canon = canonicalize(resolved);
+  const rel = path.relative(base, canon);
   if (rel !== "" && (rel.startsWith("..") || path.isAbsolute(rel))) return null;
-  if (!realWithinRoot(base, resolved)) return null;
-  return resolved;
+  return canon;
 }
 
 // --- guard policy (mirror of guard/policy.ts) -------------------------------

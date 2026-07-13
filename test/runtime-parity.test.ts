@@ -46,6 +46,11 @@ describe("hook runtime parity", () => {
     fs.symlinkSync(outside, path.join(project, "link"));
     expect(rt.confineToRoot(project, "link/CLAUDE.md")).toEqual(guard.confineToRoot(project, "link/CLAUDE.md"));
     expect(rt.confineToRoot(project, "link/CLAUDE.md")).toBeNull();
+    const alias = path.join(base, "alias");
+    fs.symlinkSync(project, alias, "dir");
+    const aliased = path.join(alias, ".env");
+    expect(rt.confineToRoot(project, aliased)).toEqual(guard.confineToRoot(project, aliased));
+    expect(rt.confineToRoot(project, aliased)).toBe(path.join(fs.realpathSync(project), ".env"));
   });
 
   it("evaluateWrite matches for a secret-block case", () => {
