@@ -32,7 +32,7 @@ describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a 
 
     // Every registered hook script must be copied into the project (else the
     // registered hook points at a file that never gets installed).
-    for (const script of ["session-end.js", "post-tool-batch.js", "file-changed.js"]) {
+    for (const script of ["session-end.js", "post-tool-batch.js", "file-changed.js", "stop-failure.js"]) {
       expect(fs.existsSync(path.join(dir, ".packmind", "hooks", script))).toBe(true);
     }
 
@@ -40,6 +40,7 @@ describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a 
     expect(JSON.stringify(settings.hooks.SessionEnd)).toContain("session-end.js");
     expect(JSON.stringify(settings.hooks.PostToolBatch)).toContain("post-tool-batch.js");
     expect(JSON.stringify(settings.hooks.FileChanged)).toContain("file-changed.js");
+    expect(JSON.stringify(settings.hooks.StopFailure)).toContain("stop-failure.js");
   });
 });
 
@@ -52,8 +53,14 @@ describe("buildHookMap registers every shipped lifecycle event", () => {
       ["PostToolBatch", "post-tool-batch.js"],
       ["FileChanged", "file-changed.js"],
       ["Stop", "stop.js"],
+      ["StopFailure", "stop-failure.js"],
     ] as const) {
       expect(JSON.stringify(map[event] ?? []), event).toContain(script);
     }
+  });
+
+  it("StopFailure is registered with the exact rate_limit matcher", () => {
+    const map = buildHookMap();
+    expect(map.StopFailure[0].matcher).toBe("rate_limit");
   });
 });

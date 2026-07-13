@@ -49,6 +49,9 @@ export function buildHookMap(): HookMap {
       group("Write|Edit|MultiEdit", "post-write.js", 10),
     ],
     Stop: [group("", "stop.js", 10)],
+    // StopFailure's matcher filters on error type; only rate_limit is handled.
+    // Claude ignores this hook's output entirely - it can only record state.
+    StopFailure: [group("rate_limit", "stop-failure.js", 5)],
     SessionEnd: [group("", "session-end.js", 10)],
     PostToolBatch: [group("", "post-tool-batch.js", 10)],
     // FileChanged fires for the paths SessionStart emits via watchPaths.

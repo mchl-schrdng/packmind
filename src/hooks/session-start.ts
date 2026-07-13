@@ -27,6 +27,7 @@ import {
   emptyChangeSet,
   updateChangeSet,
   emitSessionStart,
+  clearResumeTicket,
   type LedgerLike,
   type Session,
 } from "./runtime.js";
@@ -79,6 +80,18 @@ async function main(): Promise<void> {
     if (fold) foldIntoLedger(fold, fold.model ?? cfg.model);
     updateJson<Session | null>(sessionFile(rawKey), null, () => record);
     recordId = record.id;
+
+    // A resume ticket for this session means we were rate-limited and are now
+    // demonstrably back: the reattached record above IS the reconciliation, so
+    // confirm and drop the ticket. StopFailure will re-block it if the limit
+    // hits again.
+    if (record.sessionId) {
+      try {
+        clearResumeTicket(record.sessionId, now.toISOString());
+      } catch {
+        /* ticket cleanup is best-effort */
+      }
+    }
 
     // New incarnation (fresh start, or /clear): snapshot a change baseline so the
     // reconciler has something to diff against. Git only in-hook; non-git manifest

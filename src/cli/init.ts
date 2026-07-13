@@ -15,7 +15,7 @@ import { seedBrainFiles } from "./seed.js";
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
 const HOOK_SCRIPTS = [
   "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
-  "post-read.js", "pre-write.js", "post-write.js", "stop.js",
+  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
 ];
 
 function copy(src: string, dest: string): void {

@@ -96,4 +96,12 @@ describe.skipIf(!built)("[P1] compiled stop-failure hook", () => {
     runHook(root, "stop-failure.js", { hook_event_name: "StopFailure", session_id: "sess-42", error: "rate_limit" });
     expect(readTicket(root, "sess-42")!.status).toBe("blocked");
   });
+
+  it("SessionStart for the same session clears the ticket (resume confirmed)", () => {
+    const root = project();
+    runHook(root, "stop-failure.js", { hook_event_name: "StopFailure", session_id: "sess-42", error: "rate_limit" });
+    expect(fs.existsSync(ticketFile(root, "sess-42"))).toBe(true);
+    runHook(root, "session-start.js", { hook_event_name: "SessionStart", source: "resume", session_id: "sess-42" });
+    expect(fs.existsSync(ticketFile(root, "sess-42"))).toBe(false);
+  });
 });

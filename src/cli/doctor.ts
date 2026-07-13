@@ -9,7 +9,7 @@ import { pruneRegistry } from "./registry.js";
 
 const HOOK_SCRIPTS = [
   "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
-  "post-read.js", "pre-write.js", "post-write.js", "stop.js",
+  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
 ];
 
 export function runDoctor(): void {
