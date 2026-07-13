@@ -4,7 +4,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { looksSecret } from "../src/guard/secrets.js";
 import { confineToRoot, samePath } from "../src/guard/path-guard.js";
-import { evaluateWrite, DEFAULT_POLICY } from "../src/guard/policy.js";
+import { evaluateWrite, resolveRules, DEFAULT_POLICY } from "../src/guard/policy.js";
 
 describe("secrets denylist", () => {
   it("flags secrets, allows source", () => {
@@ -36,6 +36,38 @@ describe("path guard", () => {
     expect(confineToRoot(project, "link/CLAUDE.md")).toBeNull();
     // A genuine in-root path is still accepted.
     expect(confineToRoot(project, "src/a.ts")).toBe(path.join(project, "src", "a.ts"));
+  });
+});
+
+describe("rule resolution", () => {
+  function projectWithPolicy(rules: unknown): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "pm-rules-"));
+    fs.mkdirSync(path.join(root, ".packmind"));
+    fs.writeFileSync(path.join(root, ".packmind", "policy.json"), JSON.stringify({ version: 1, rules }));
+    return root;
+  }
+
+  it("dedupes by rule id, local rule wins over the built-in", () => {
+    // A policy.json seeded with the same rule id as a built-in (the default
+    // template does exactly this) must yield ONE rule, the local variant.
+    const root = projectWithPolicy([
+      { id: "no-secret-files", message: "local override", severity: "block", secretFile: true },
+    ]);
+    const rules = resolveRules(root);
+    const matching = rules.filter((r) => r.id === "no-secret-files");
+    expect(matching).toHaveLength(1);
+    expect(matching[0]!.severity).toBe("block");
+    expect(matching[0]!.message).toBe("local override");
+  });
+
+  it("keeps built-ins and appends distinct local rules", () => {
+    const root = projectWithPolicy([
+      { id: "no-console-log", message: "no console.log", severity: "warn", content: "console\\.log" },
+    ]);
+    const ids = resolveRules(root).map((r) => r.id);
+    expect(ids).toContain("no-secret-files");
+    expect(ids).toContain("no-console-log");
+    expect(ids).toHaveLength(new Set(ids).size);
   });
 });
 

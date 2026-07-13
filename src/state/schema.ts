@@ -12,33 +12,11 @@ import { confineToRoot } from "../guard/path-guard.js";
  */
 export interface Config {
   version: number;
-  model: string;
-  map: {
-    autoScanOnInit: boolean;
-    maxFiles: number;
-    respectGitignore: boolean;
-    excludeDirs: string[];
-    extraSecretGlobs: string[];
-  };
-  cost: {
-    /** "auto": exact when ANTHROPIC_API_KEY present, else estimate. */
-    exact: "auto" | "never" | "always";
-    /** Per-model USD/Mtok overrides for the built-in pricing defaults. */
-    prices: Record<string, { inputPerMTok: number; outputPerMTok: number }>;
-  };
-  recall: {
-    enabled: boolean;
-    embedModel: string;
-    chunkChars: number;
-    topK: number;
-  };
   guard: {
     /** Hard-block writes that target a secret file (opt-in). */
     blockSecrets: boolean;
-    /** Lean mode: nudge toward reuse-first, minimal solutions before writing. */
-    lean: { mode: "off" | "lite" | "full" };
-    /** Active practice packs (names under templates/packs/), composed into the guard set. */
-    practices: string[];
+    /** Extra globs treated as secret files on top of the built-in denylist. */
+    extraSecretGlobs: string[];
   };
   claude: {
     settingsPath: string;
@@ -48,26 +26,7 @@ export interface Config {
 
 export const DEFAULT_CONFIG: Config = {
   version: 1,
-  model: "claude-opus-4-8",
-  map: {
-    autoScanOnInit: true,
-    maxFiles: 600,
-    respectGitignore: true,
-    excludeDirs: [
-      "node_modules", ".git", ".packmind", ".claude", "dist", "build", "out",
-      ".next", ".nuxt", ".svelte-kit", "coverage", "__pycache__", ".cache",
-      "target", ".venv", "vendor", ".turbo", ".vercel", ".idea", ".vscode",
-    ],
-    extraSecretGlobs: [],
-  },
-  cost: { exact: "never", prices: {} },
-  recall: {
-    enabled: true,
-    embedModel: "Xenova/all-MiniLM-L6-v2",
-    chunkChars: 1200,
-    topK: 6,
-  },
-  guard: { blockSecrets: false, lean: { mode: "lite" }, practices: [] },
+  guard: { blockSecrets: false, extraSecretGlobs: [] },
   claude: {
     settingsPath: ".claude/settings.json",
     claudeMdPath: "CLAUDE.md",

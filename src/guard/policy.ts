@@ -63,11 +63,16 @@ export function validateRules(rules: Rule[]): string[] {
 
 /**
  * Compose the effective rule set: DEFAULT_POLICY rules overlaid by the user's
- * local policy.json rules.
+ * local policy.json rules, deduplicated by rule id. A local rule with a
+ * built-in's id REPLACES it (so retuning e.g. severity never doubles the rule).
  */
 export function resolveRules(root: string): Rule[] {
   const local = readJsonOr<{ rules?: Rule[] }>(brain(root).policy, {});
-  return [...DEFAULT_POLICY.rules, ...(Array.isArray(local.rules) ? local.rules : [])];
+  const byId = new Map<string, Rule>();
+  for (const rule of [...DEFAULT_POLICY.rules, ...(Array.isArray(local.rules) ? local.rules : [])]) {
+    byId.set(rule.id, rule);
+  }
+  return [...byId.values()];
 }
 
 /** Regenerate .packmind/guard.effective.json (the file the pre-write hook reads). */
