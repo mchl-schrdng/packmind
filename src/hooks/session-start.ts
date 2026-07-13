@@ -27,6 +27,9 @@ import {
   emptyChangeSet,
   updateChangeSet,
   emitSessionStart,
+  clearResumeTicket,
+  resumeTicketFile,
+  reconcileAndSync,
   type LedgerLike,
   type Session,
 } from "./runtime.js";
@@ -107,6 +110,23 @@ async function main(): Promise<void> {
         );
       } catch {
         /* baseline is best-effort; the CLI can rebuild it */
+      }
+    }
+
+    // A resume ticket for this session means a turn was cut off by a rate
+    // limit: reconcile the interrupted turn's changes NOW (Bash/external
+    // edits included - the ticket's reconcileRequested contract), then drop
+    // the ticket. StopFailure re-creates it if the limit hits again.
+    if (record.sessionId && fs.existsSync(resumeTicketFile(record.sessionId))) {
+      try {
+        reconcileAndSync(projectRoot(), record, cfg);
+      } catch {
+        /* reconcile retries at the next Stop/maintain; never block startup */
+      }
+      try {
+        clearResumeTicket(record.sessionId);
+      } catch {
+        /* ticket cleanup is best-effort */
       }
     }
 

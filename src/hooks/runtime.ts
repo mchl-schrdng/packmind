@@ -647,6 +647,86 @@ export function updateSession(rawKey: string, fn: (s: Session) => void): void {
   });
 }
 
+// --- resume tickets (rate-limited session recovery) ---------------------------
+/** Mirror of src/state/resume.ts's ResumeTicketV1 (hooks are zero-dep). */
+export interface ResumeTicket {
+  version: 1;
+  sessionId: string;
+  status: "blocked" | "launching" | "resumed";
+  createdAt: string;
+  updatedAt: string;
+  resetAt?: string;
+  reconcileRequested: boolean;
+}
+
+/** Same hashing as src/state/resume.ts ticketFile - pinned by tests. */
+export function resumeTicketFile(sessionId: string): string {
+  const hash = crypto.createHash("sha256").update(sessionId).digest("hex").slice(0, 16);
+  return brainPath("state", "resume-tickets", `${hash}.json`);
+}
+
+/**
+ * Extract a rate-limit reset time from the DOCUMENTED StopFailure surface:
+ * `error_details`, a human-readable string (e.g. "Rate limit exceeded.
+ * Please retry after 60 seconds."). No structured reset field exists in the
+ * docs, so only two clear patterns are accepted - a "retry after/in N
+ * seconds|minutes|hours" phrase, or an explicit ISO-8601 timestamp. Anything
+ * else returns undefined: a reset time is never invented.
+ */
+export function extractResetAt(input: Record<string, any>, nowMs: number): string | undefined {
+  const details = input?.error_details;
+  if (typeof details !== "string" || !details.trim()) return undefined;
+
+  const rel = details.match(/retry\s+(?:after|in)\s+(\d+)\s*(seconds?|minutes?|hours?)/i);
+  if (rel) {
+    const n = Number(rel[1]);
+    const unit = rel[2].toLowerCase();
+    const ms = n * (unit.startsWith("h") ? 3_600_000 : unit.startsWith("m") ? 60_000 : 1000);
+    if (n > 0) return new Date(nowMs + ms).toISOString();
+  }
+  const iso = details.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})/);
+  if (iso) {
+    const ms = Date.parse(iso[0]);
+    if (Number.isFinite(ms)) return new Date(ms).toISOString();
+  }
+  return undefined;
+}
+
+/** Create-or-reset the session's ticket to blocked (StopFailure rate_limit). */
+export function blockResumeTicket(sessionId: string, now: string, resetAt?: string): void {
+  updateJson<ResumeTicket | null>(resumeTicketFile(sessionId), null, (prev) => {
+    const kept = resetAt ?? prev?.resetAt;
+    return {
+      version: 1,
+      sessionId,
+      status: "blocked",
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: now,
+      ...(kept ? { resetAt: kept } : {}),
+      reconcileRequested: true,
+    };
+  });
+}
+
+/**
+ * SessionStart saw the session again: the resume is confirmed, drop the
+ * ticket. Removal happens under the same lock blockResumeTicket writes with,
+ * so a concurrent StopFailure either lands before (its write is deleted with
+ * the confirmation - correct, the session IS back) or after (a fresh blocked
+ * ticket is recreated and survives - correct, a new limit was hit).
+ */
+export function clearResumeTicket(sessionId: string): void {
+  const file = resumeTicketFile(sessionId);
+  if (!fs.existsSync(file)) return;
+  withLock(file, () => {
+    try {
+      fs.rmSync(file, { force: true });
+    } catch {
+      /* best effort */
+    }
+  });
+}
+
 // --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------
 interface LedgerRow {
   id: string;

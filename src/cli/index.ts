@@ -15,6 +15,7 @@ import { runMcp } from "./mcp-cmd.js";
 import { runDashboard } from "./dashboard-cmd.js";
 import { runInsights } from "./insights-cmd.js";
 import { runMaintain } from "./maintain-cmd.js";
+import { runResume } from "./resume-cmd.js";
 import { runBackup, runRestore } from "./backup-cmd.js";
 import { runDebt } from "./debt-cmd.js";
 import { runChanges, runReconcile } from "./changes-cmd.js";
@@ -23,7 +24,7 @@ export function createProgram(): Command {
   const program = new Command();
   program
     .name("packmind")
-    .description("A second brain for Claude Code: project memory, estimated token & cost activity, semantic recall, and active guardrails.")
+    .description("A local second brain for Claude Code: project memory across sessions, fewer repeated reads, safe resume of rate-limited sessions.")
     .version(pkgVersion());
 
   program.command("init").description("Initialize .packmind/, register hooks and the MCP server").action(runInit);
@@ -41,10 +42,21 @@ export function createProgram(): Command {
 
   program
     .command("maintain")
-    .description("One-shot upkeep (scan, reindex, archive journal, prune backups) - cron-friendly")
-    .option("--quiet", "Suppress output (for unattended/cron runs)")
-    .option("--keep-backups <n>", "How many backups to keep (default 10)")
-    .action((o) => runMaintain(o));
+    .description("One-shot upkeep (reconcile, scan, recall queue, archive journal, prune) - safe under cron")
+    .option("--quiet", "Suppress success output (errors still go to stderr)")
+    .option("--keep-backups <n>", "How many backups to keep, 1-1000 (default 10)")
+    .action(async (o) => {
+      process.exitCode = await runMaintain(o);
+    });
+
+  program
+    .command("resume")
+    .description("Resume a rate-limited Claude Code session (claude --resume <session-id>)")
+    .option("--session <id>", "Which session to resume (required when several tickets exist)")
+    .option("--wait", "Wait in the foreground until the recorded reset time, then launch")
+    .action(async (o) => {
+      process.exitCode = await runResume(o);
+    });
 
   program
     .command("backup")
@@ -101,7 +113,11 @@ export function createProgram(): Command {
     .option("--check", "Only report whether a newer version exists (no changes)")
     .action((o) => runUpgrade(o));
 
-  program.command("doctor").description("Diagnose projects, hooks, and MCP registration").action(runDoctor);
+  program
+    .command("doctor")
+    .description("Diagnose projects, hooks, and MCP registration")
+    .option("--fix", "Repair what is safely repairable (e.g. remove a maintain lock older than 6h)")
+    .action((o) => runDoctor(o));
 
   program.command("mcp").description("Run the PackMind MCP server (stdio)").action(() => runMcp());
 

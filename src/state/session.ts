@@ -145,9 +145,10 @@ export function activeSessions(root: string): Array<{ file: string; record: Sess
 }
 
 /**
- * Prune stale session files: only NON-active records older than `maxAgeMs` (by
- * lastEventAt). Live (status active) sessions are never touched - pruning by age
- * belongs in `maintain`, not SessionStart, to avoid the lock-sweep class of bug.
+ * Prune stale session files: only records that are neither active NOR
+ * suspended (i.e. genuinely finalized leftovers) older than `maxAgeMs` by
+ * lastEventAt. Active sessions are live; suspended ones may resume at any
+ * time (possibly after a rate limit) - age alone never deletes either.
  * Returns how many were removed.
  */
 export function pruneStaleSessions(root: string, maxAgeMs: number): number {
@@ -163,7 +164,7 @@ export function pruneStaleSessions(root: string, maxAgeMs: number): number {
   for (const n of names) {
     const file = path.join(dir, n);
     const rec = readJsonOr<SessionState | null>(file, null);
-    if (!rec || rec.status === "active") continue;
+    if (!rec || rec.status === "active" || rec.status === "suspended") continue;
     const last = rec.lastEventAt ? Date.parse(rec.lastEventAt) : 0;
     if (now - (Number.isFinite(last) ? last : 0) > maxAgeMs) {
       try {

@@ -1,17 +1,17 @@
 <p align="center">
-  <img src="packmind-mark.svg" alt="PackMind" width="120" />
+  <img src="https://raw.githubusercontent.com/mchl-schrdng/packmind/main/packmind-mark.svg" alt="PackMind" width="120" />
 </p>
 
 <h1 align="center">PackMind</h1>
 
 <p align="center">
-  <strong>A second brain for Claude Code.</strong><br />
-  Project memory, estimated token &amp; cost activity, local semantic recall, and active guardrails - through lifecycle hooks and an MCP server. Zero workflow changes.
+  <strong>A local second brain for Claude Code.</strong><br />
+  PackMind preserves project memory across Claude Code sessions, helps avoid repeated reads, and safely resumes a rate-limited session when the user asks it to.
 </p>
 
 <p align="center">
   <a href="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml"><img src="https://github.com/mchl-schrdng/packmind/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-  <a href="badges/coverage.svg"><img src="badges/coverage.svg" alt="Coverage" /></a>
+  <a href="https://github.com/mchl-schrdng/packmind/blob/main/badges/coverage.svg"><img src="https://raw.githubusercontent.com/mchl-schrdng/packmind/main/badges/coverage.svg" alt="Coverage" /></a>
   <a href="https://github.com/mchl-schrdng/packmind/actions/workflows/codeql.yml"><img src="https://github.com/mchl-schrdng/packmind/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
   <a href="https://www.npmjs.com/package/packmind"><img src="https://img.shields.io/npm/v/packmind.svg" alt="npm" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-blue.svg" alt="License: Apache-2.0" /></a>
@@ -21,35 +21,41 @@
 ---
 
 <p align="center">
-  <img src="assets/dashboard.gif" alt="PackMind dashboard - Overview, Insights, Project Map, Journal, and Recall" width="800" />
+  <img src="https://raw.githubusercontent.com/mchl-schrdng/packmind/main/assets/dashboard.gif" alt="PackMind dashboard - Overview, Insights, Project Map, Journal, and Recall" width="800" />
 </p>
 
 ---
 
 ## Contents
 
-- [What PackMind does](#what-packmind-does)
-- [Install and quick start](#install-and-quick-start)
+- [The problem it solves](#the-problem-it-solves)
+- [Install in five minutes](#install-in-five-minutes)
 - [How it works](#how-it-works)
+- [Resuming after a rate limit](#resuming-after-a-rate-limit)
 - [Lifecycle hooks](#lifecycle-hooks)
 - [MCP tools](#mcp-tools)
-- [CLI reference](#cli-reference)
+- [CLI commands](#cli-commands)
 - [What lives in `.packmind/`](#what-lives-in-packmind)
 - [Configuration](#configuration)
-- [Scheduled maintenance](#scheduled-maintenance-no-daemon)
-- [Privacy](#privacy)
+- [Maintenance via cron (no daemon)](#maintenance-via-cron-no-daemon)
+- [Local data & privacy](#local-data--privacy)
 - [Security](#security)
+- [Known limitations](#known-limitations)
 - [Requirements](#requirements)
+- [Uninstall](#uninstall)
 - [Contributing](#contributing)
 - [License](#license)
 
-## What PackMind does
+## The problem it solves
 
 Claude Code works without persistent project context: it can't tell a 50-token
-config from a 2,000-token module before opening it, re-reads the same files, and
-forgets what it learned last session. PackMind fixes that with a small state
-directory (`.packmind/`) maintained by lifecycle hooks, plus an MCP server that
-exposes the project's memory as tools Claude can query directly.
+config from a 2,000-token module before opening it, re-reads the same files,
+forgets what it learned last session - and when a usage limit cuts a session
+off, that exact session is stranded until you piece things back together by
+hand. PackMind fixes that with a small state directory (`.packmind/`)
+maintained by lifecycle hooks, an MCP server that exposes the project's memory
+as tools Claude can query directly, and a local resume ticket that lets you
+relaunch the exact rate-limited session - explicitly, safely, once.
 
 - **Project map** - every file gets a one-line description, a token estimate, and
   an estimated read cost, so Claude reads `map.md` instead of opening files blind.
@@ -59,6 +65,9 @@ exposes the project's memory as tools Claude can query directly.
   machine by default.
 - **Local semantic recall** - an on-device embedding index (nothing leaves your
   machine) lets Claude `recall(...)` past decisions, solutions, and code by meaning.
+- **Rate-limit resume** - a `StopFailure: rate_limit` event records a local
+  ticket for the interrupted session; `packmind resume` relaunches it with
+  `claude --resume <session-id>` when you ask, optionally waiting for the reset.
 - **Active guardrails** - a policy engine warns (or hard-blocks, opt-in) before a
   write touches a secret file or violates a project rule.
 - **Practice packs** - installable sets of engineering reflexes (tests, CI, release
@@ -79,7 +88,7 @@ exposes the project's memory as tools Claude can query directly.
   parallel tool batches, or external editors - and keeps the map, recall, and practice checks
   in sync with it. Inspect it with `packmind changes` or the `changes` MCP tool.
 
-## Install and quick start
+## Install in five minutes
 
 ```bash
 npm install -g packmind          # or: pnpm add -g packmind
@@ -97,7 +106,37 @@ Commit the durable brain files (`map.md`, `knowledge.md`, `config.json`,
 `policy.json`) so your whole team shares the same project memory. See
 [What lives in `.packmind/`](#what-lives-in-packmind) for the full commit guide.
 
+Already running an older PackMind? `packmind upgrade` bumps the installed
+package, then `packmind update` refreshes every registered project (hooks
+included - this is how existing projects receive `stop-failure.js`).
+
 ## How it works
+
+```mermaid
+flowchart TD
+    U["User runs Claude Code"] --> H["PackMind lifecycle hooks"]
+    H --> S["Local .packmind state"]
+    H --> M["PackMind MCP tools"]
+
+    H -->|"StopFailure: rate_limit"| T["Local resume ticket"]
+    T --> R["User runs packmind resume --wait"]
+    R --> Q{"Reset time reached?"}
+    Q -->|"Not yet"| W["Foreground countdown"]
+    W --> Q
+    Q -->|"Ready"| C["claude --resume session-id"]
+    Q -->|"Reset unknown"| I["Ask user to retry after reset"]
+    C --> S
+
+    CR["User-configured cron"] --> MT["packmind maintain --quiet"]
+    MT --> S
+```
+
+What this diagram guarantees:
+
+- Resuming requires an **explicit user action** (`packmind resume`); nothing is relaunched automatically.
+- PackMind **does not bypass Claude usage limits** - it only waits for the recorded reset and then resumes the exact session.
+- The cron job only maintains **local data**; it **never launches Claude** and never consumes Claude tokens.
+- **No PackMind daemon** runs in the background - everything is short-lived hooks and one-shot commands.
 
 PackMind has three moving parts, all local:
 
@@ -105,8 +144,9 @@ PackMind has three moving parts, all local:
    `.packmind/hooks/` and registered in `.claude/settings.json` (tagged
    `_managedBy: packmind` so they are preserved and removable cleanly). Claude
    Code runs them on its own events (session start/end, prompt submit, before and
-   after each Read/Write, and turn stop). They maintain the map, journal, usage
-   ledger, and session state, and feed short reminders back into the model.
+   after each Read/Write, turn stop, and rate-limit failures). They maintain the
+   map, journal, usage ledger, and session state, and feed short reminders back
+   into the model.
 2. **MCP server** - registered in `.mcp.json`, it exposes the brain as tools
    Claude can call directly (`recall`, `remember`, `record_solution`, and more).
 3. **State directory** - `.packmind/`, a set of plain files (Markdown + JSON) you
@@ -137,6 +177,41 @@ make updates appear quickly, and reconciliation establishes correctness.
   never claims to watch every possible future file or to prevent a change that a
   post-change hook only observes after it happened.
 
+## Resuming after a rate limit
+
+When a turn ends on a `rate_limit` API error, Claude Code fires the
+`StopFailure` hook (its output is ignored by Claude - the hook can only record
+state). PackMind writes a small local ticket at
+`.packmind/state/resume-tickets/<session-id-hash>.json` with the session id, a
+`blocked` status, and - only when `error_details` clearly states one ("retry
+after 60 seconds", or an explicit timestamp) - the reset time. The ticket never
+contains messages, transcripts, secrets, or source content.
+
+```bash
+packmind resume                # resume the only blocked session
+packmind resume --session <id> # pick one when several are blocked
+packmind resume --wait         # foreground countdown, launch at reset time
+```
+
+Behavior:
+
+- Reset already passed → launches `claude --resume <session-id>` immediately.
+- Reset in the future without `--wait` → prints the reset time and launches nothing.
+- Reset in the future with `--wait` → visible countdown, then a single launch.
+  Ctrl-C aborts without launching; the ticket is kept.
+- Reset unknown with `--wait` → nothing is launched; retry after the limit resets.
+- Reset unknown without `--wait` → warns, then launches, because you asked explicitly.
+- Close the previous Claude process first - PackMind refuses concurrent resumes
+  of the same session and launches exactly once (argument array, inherited
+  terminal, from the validated project root).
+
+When the session actually comes back, the `SessionStart` hook reconciles the
+interrupted turn's changes (Bash and external edits included) and drops the
+ticket. If Claude exits without confirming the resume - or hits the limit
+again - the ticket returns to `blocked` so `packmind resume` can be retried;
+a launch orphaned by a hard kill can be recovered with `packmind doctor --fix`
+after six hours.
+
 ## Lifecycle hooks
 
 Installed into `.packmind/hooks/` and wired into `.claude/settings.json` by
@@ -145,7 +220,7 @@ tool call).
 
 | Event | Hook | What it does |
 |-------|------|--------------|
-| `SessionStart` | `session-start.js` | Opens or reattaches this session's record (keyed by the real `session_id`), injects the handoff note, a "check `map.md` first" reminder, and the session id into context. `resume`/`compact` continue the session; `/clear` folds the old one into the ledger and starts a fresh incarnation. |
+| `SessionStart` | `session-start.js` | Opens or reattaches this session's record (keyed by the real `session_id`), injects the handoff note, a "check `map.md` first" reminder, and the session id into context. `resume`/`compact` continue the session; `/clear` folds the old one into the ledger and starts a fresh incarnation. A pending resume ticket for the session triggers a reconcile, then the ticket is dropped. |
 | `UserPromptSubmit` | `prompt-submit.js` | Lexically matches your prompt against recorded solutions and surfaces likely-relevant past fixes before Claude even calls a tool. |
 | `PreToolUse: Read` | `pre-read.js` | Before a read: warns if the file was already read unchanged this session (wasteful re-read), surfaces its `map.md` description + token estimate, and suggests `compress()` for large non-source files. |
 | `PreToolUse: Write/Edit/MultiEdit` | `pre-write.js` | Before a write: evaluates the guardrail policy (warn, or hard-block secrets/rules when enabled), surfaces relevant recorded solutions and `knowledge.md` never-do notes, and emits the lean-mode reuse nudge. |
@@ -154,6 +229,7 @@ tool call).
 | `PostToolBatch` | `post-tool-batch.js` | After a batch of (possibly parallel) tool calls: coalesces direct writes into change candidates and flags a reconcile when Bash, a file-writing MCP tool, or an unknown tool ran. Inspects tool names/inputs only, never the tool response. |
 | `FileChanged` | `file-changed.js` | A watched file changed on disk (add/change/unlink) outside the direct tools: records an eligible, in-root change candidate. Fires for the paths `SessionStart` emits via `watchPaths`. |
 | `Stop` | `stop.js` | End of each turn: reconciles the net change set (git), syncs map + recall, folds usage into the lifetime ledger, refreshes the handoff, and emits at-most-once reminders. |
+| `StopFailure` (matcher `rate_limit`) | `stop-failure.js` | A turn ended on a rate-limit API error: records the local resume ticket for the exact session. Claude ignores this hook's output entirely - it never retries, relaunches, or works around the limit. |
 | `SessionEnd` | `session-end.js` | When a session ends: a final reconcile, folds into the ledger, then on a terminal end removes the live session file and refreshes the handoff; on `resume` it suspends and keeps the file. |
 
 ## MCP tools
@@ -176,7 +252,7 @@ Registered automatically in `.mcp.json`. Claude can call:
 | `compress(content, kind?)` | Shelve a large non-source output and get a compact, reversible preview plus a retrieval hash. |
 | `retrieve(hash)` | Return the full original a `compress` call stored. |
 
-## CLI reference
+## CLI commands
 
 Run any command inside a project (a directory with `.packmind/`). `packmind
 <command> --help` prints usage.
@@ -186,9 +262,10 @@ Run any command inside a project (a directory with `.packmind/`). `packmind
 | Command | What it does |
 |---------|--------------|
 | `packmind init` | Create `.packmind/` (config + seed brain files + hooks), register the lifecycle hooks in `.claude/settings.json`, register the MCP server in `.mcp.json`, wire a snippet into `CLAUDE.md`, resolve the effective guard set, and run an initial map scan. Idempotent - safe to re-run. |
+| `packmind resume [--session <id>] [--wait]` | Resume a rate-limited Claude Code session from its local ticket by launching `claude --resume <session-id>` once. `--session` selects one when several tickets exist; `--wait` counts down in the foreground until the recorded reset time. See [Resuming after a rate limit](#resuming-after-a-rate-limit). |
 | `packmind update [--dry-run] [--list] [--project <name>]` | Update every registered project to the current PackMind version: snapshot first, re-copy the hooks, re-register, and refresh the effective guard set, all while preserving `config.json`. `--dry-run` shows what would change; `--list` lists registered projects; `--project` limits to one. |
 | `packmind upgrade [--check]` | Upgrade PackMind **itself** to the latest published version: detect the package manager (npm/pnpm/yarn), install `packmind@latest`, then refresh registered projects via `packmind update`. `--check` only reports whether a newer version exists and prints the command to run. (Note: `update` refreshes projects; `upgrade` bumps the installed package.) |
-| `packmind doctor` | Diagnose registered projects, hook installation, and MCP registration; report what is installed, stale, or missing. |
+| `packmind doctor [--fix]` | Diagnose registered projects, hook installation, and MCP registration; report what is installed, stale, or missing. `--fix` repairs what is safely repairable: removes a maintain lock older than six hours and resets a resume launch orphaned for more than six hours. |
 | `packmind mcp` | Run the MCP server over stdio. Claude Code invokes this for you - you rarely run it by hand. |
 
 ### Map and accounting
@@ -231,7 +308,7 @@ Run any command inside a project (a directory with `.packmind/`). `packmind
 |---------|--------------|
 | `packmind backup [--list]` | Snapshot `.packmind/` to `~/.packmind/backups/<project>/<timestamp>` (skipping the regenerable vector index). `--list` lists existing snapshots. |
 | `packmind restore [timestamp]` | Restore `.packmind/` from a backup. Takes a pre-restore snapshot and swaps atomically so a failed restore can't lose your brain. Omit the timestamp to list available backups. |
-| `packmind maintain [--quiet] [--keep-backups <n>]` | One-shot upkeep: refresh the map, rebuild the recall index, archive an overgrown journal, and prune old backups and stale session files. `--quiet` for unattended runs; `--keep-backups` sets how many snapshots to keep (default 10). Cron-friendly. |
+| `packmind maintain [--quiet] [--keep-backups <n>]` | One-shot, cron-safe upkeep under an exclusive lock: reconcile active sessions, refresh the map, process the recall queue incrementally, archive an overgrown journal, prune only genuinely finalized session files, then prune old backups (skipped if any earlier step failed). `--quiet` hides successes, never errors; `--keep-backups` takes an integer 1-1000 (default 10), validated before anything is touched. See [Maintenance via cron](#maintenance-via-cron-no-daemon). |
 | `packmind dashboard [--port <port>] [--no-open]` | Launch the local web dashboard (Overview, Insights, Project Map, Journal, Recall, Config). Binds to loopback only and is token-protected. `--port` sets a preferred port (default 7878); `--no-open` skips auto-opening the browser. |
 
 ## What lives in `.packmind/`
@@ -250,8 +327,12 @@ Run any command inside a project (a directory with `.packmind/`). `packmind
 | `usage.json` | Token &amp; cost ledger | no (per-dev) |
 | `handoff.md` | Session resume note | no (per-dev) |
 | `state/sessions/` | Per-session live state (keyed by session id) | no (per-dev) |
+| `state/resume-tickets/` | Rate-limit resume tickets (lifecycle metadata only) | no (per-dev) |
 | `compress/` | Reversible shelved-output store | no (per-dev) |
 | `recall/` | Local vector index | no (per-dev) |
+
+`packmind init` seeds a `.packmind/.gitignore` that keeps exactly the per-dev
+rows above out of git while the shared brain files stay tracked.
 
 ## Configuration
 
@@ -273,26 +354,44 @@ update` and stays forward-compatible. Notable keys:
 - `guard.lean.mode` - the reuse-first nudge before writes: `off` | `lite` | `full` (default `lite`).
 - `map.respectGitignore`, `map.extraSecretGlobs` - control what gets mapped.
 
-## Scheduled maintenance (no daemon)
+## Maintenance via cron (no daemon)
 
 Instead of a background daemon, PackMind ships a single `maintain` command you
-schedule yourself - it refreshes the map, rebuilds the recall index, archives an
-overgrown journal, and prunes old backups and stale sessions. Wire it into your
-own scheduler:
+schedule yourself. PackMind installs no scheduler:
+**it never creates, modifies, or deletes your crontab**.
+Add a line yourself if you want unattended upkeep:
 
 ```cron
-# crontab -e  - keep a project's brain fresh every night at 2am
-0 2 * * * cd /path/to/project && packmind maintain --quiet
+# Tous les jours à 02:00
+0 2 * * * cd /chemin/absolu/projet && /chemin/absolu/packmind maintain --quiet >> /chemin/absolu/packmind-maintain.log 2>&1
 ```
 
-No persistent process, no open ports, no state to leak.
+Each run validates everything before touching anything
+(`packmind maintain --keep-backups <n>` only accepts an integer from 1 to
+1000), then takes an exclusive lock -
+`.packmind/state/maintain.lock/` - so two maintains can never overlap: a second
+concurrent run exits with code `3`, and a lock is never stolen (a crashed run's
+lock older than six hours is removed by `packmind doctor --fix`, never by
+`maintain` itself). The steps then run in order: reconcile active sessions,
+refresh the map, process the recall queue incrementally, archive an overgrown
+journal, delete only genuinely finalized session files (active and suspended
+sessions are never removed by age), and finally prune backups - skipped
+entirely if any earlier step failed. It never launches Claude and never
+consumes Claude tokens. `--quiet` hides successes, never errors; errors go to
+stderr so your cron log captures them.
 
-## Privacy
+Exit codes: `0` success · `1` invalid arguments or config · `2` partial
+failure · `3` another maintenance is active.
 
-Embeddings run locally via an on-device model cached under `~/.packmind/models`;
-your code is never sent anywhere for recall. The only optional network call is
-Anthropic's count-tokens endpoint, off by default and used only when you opt into
-exact counting (`cost.exact` other than `never`, or `packmind scan --exact`).
+## Local data & privacy
+
+Everything lives in `.packmind/` inside your project, plus `~/.packmind` for
+backups, the project registry, and the cached embedding model. Embeddings run
+locally; your code is never sent anywhere for recall. The only optional network
+call is Anthropic's count-tokens endpoint, off by default and used only when
+you opt into exact counting (`cost.exact` other than `never`, or
+`packmind scan --exact`). Resume tickets contain lifecycle metadata only -
+never API messages, transcripts, secrets, or source content.
 
 ## Security
 
@@ -309,10 +408,35 @@ exact counting (`cost.exact` other than `never`, or `packmind scan --exact`).
   Advanced Security); the workflow is skipped, not failed, otherwise.
 - Found something? See [the repo issues](https://github.com/mchl-schrdng/packmind/issues).
 
+## Known limitations
+
+- Resume depends on Claude Code's `StopFailure` hook event; older Claude Code
+  versions that don't ship it simply never create tickets (everything else
+  works). The hook's payload has no structured reset field - PackMind parses
+  the `error_details` message conservatively ("retry after N seconds" or an
+  explicit timestamp) and **never guesses**: without a clear reset time,
+  `--wait` asks you to retry instead of waiting blind, so expect
+  `packmind resume` (without `--wait`) to be the common path.
+- One resume ticket per session id; the ticket is dropped when the session
+  demonstrably starts again, and re-created if the limit hits again.
+- In-hook change reconciliation is git-based; non-git projects reconcile fully
+  via `packmind reconcile` or `packmind maintain` (manifest baseline).
+- Token/cost figures are estimates unless reconciled with `packmind scan --exact`.
+- Semantic recall needs the optional `@xenova/transformers` dependency; without
+  it, recall steps are skipped (visibly, on stderr, but without failing `maintain`).
+
 ## Requirements
 
 - Node.js 20+
-- Claude Code
+- Claude Code (rate-limit resume needs a version that ships the `StopFailure` hook event)
+
+## Uninstall
+
+Remove the `_managedBy: "packmind"` hook groups from `.claude/settings.json`
+(or restore the one-time `settings.json.packmind-bak` backup), remove the
+`packmind` entry from `.mcp.json`, delete `.packmind/` in the project and
+`~/.packmind` globally, then `npm uninstall -g packmind`. `packmind doctor`
+shows what is registered where before you start.
 
 ## Contributing
 
