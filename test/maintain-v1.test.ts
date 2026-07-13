@@ -56,6 +56,21 @@ describe("maintain lock", () => {
     lock.release();
     expect(fs.existsSync(maintainLockDir(root))).toBe(false);
   });
+
+  it("release() only removes a lock it still owns (doctor --fix + new maintain scenario)", () => {
+    const root = project();
+    const zombie = acquireMaintainLock(root)!;
+    // doctor --fix removed the zombie's stale lock...
+    fs.rmSync(maintainLockDir(root), { recursive: true, force: true });
+    // ...and a NEW maintain acquired its own.
+    const current = acquireMaintainLock(root)!;
+    // The zombie finishing must NOT delete the current owner's lock.
+    zombie.release();
+    expect(fs.existsSync(maintainLockDir(root))).toBe(true);
+    expect(acquireMaintainLock(root)).toBeNull(); // still exclusively held
+    current.release();
+    expect(fs.existsSync(maintainLockDir(root))).toBe(false);
+  });
 });
 
 describe("runMaintain exit codes", () => {

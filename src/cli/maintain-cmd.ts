@@ -49,20 +49,22 @@ export function acquireMaintainLock(root: string): { release(): void } | null {
     if ((err as NodeJS.ErrnoException).code === "EEXIST") return null;
     throw err;
   }
+  const owner = crypto.randomUUID();
   fs.writeFileSync(
     path.join(dir, "lock.json"),
-    JSON.stringify(
-      { pid: process.pid, startedAt: new Date().toISOString(), owner: crypto.randomUUID() },
-      null,
-      2,
-    ) + "\n",
+    JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), owner }, null, 2) + "\n",
   );
   return {
     release: () => {
+      // Only remove the lock we still own: if doctor --fix reclaimed a stale
+      // lock and a newer maintain took its place, deleting blindly here would
+      // unlock that live run and let a third maintain overlap it.
       try {
+        const current = JSON.parse(fs.readFileSync(path.join(dir, "lock.json"), "utf8")) as { owner?: string };
+        if (current?.owner !== owner) return;
         fs.rmSync(dir, { recursive: true, force: true });
       } catch {
-        /* best effort */
+        /* lock already gone or unreadable: nothing that is ours to remove */
       }
     },
   };
