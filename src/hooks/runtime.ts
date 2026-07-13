@@ -705,18 +705,23 @@ export function blockResumeTicket(sessionId: string, now: string, resetAt?: stri
   });
 }
 
-/** SessionStart saw the session again: mark resumed, then drop the ticket. */
-export function clearResumeTicket(sessionId: string, now: string): void {
+/**
+ * SessionStart saw the session again: the resume is confirmed, drop the
+ * ticket. Removal happens under the same lock blockResumeTicket writes with,
+ * so a concurrent StopFailure either lands before (its write is deleted with
+ * the confirmation - correct, the session IS back) or after (a fresh blocked
+ * ticket is recreated and survives - correct, a new limit was hit).
+ */
+export function clearResumeTicket(sessionId: string): void {
   const file = resumeTicketFile(sessionId);
   if (!fs.existsSync(file)) return;
-  updateJson<ResumeTicket | null>(file, null, (t) =>
-    t ? { ...t, status: "resumed", updatedAt: now } : t,
-  );
-  try {
-    fs.rmSync(file, { force: true });
-  } catch {
-    /* best effort */
-  }
+  withLock(file, () => {
+    try {
+      fs.rmSync(file, { force: true });
+    } catch {
+      /* best effort */
+    }
+  });
 }
 
 // --- usage ledger fold (mirror of cost/ledger.ts commitSession) -------------

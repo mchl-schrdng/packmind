@@ -104,4 +104,25 @@ describe.skipIf(!built)("[P1] compiled stop-failure hook", () => {
     runHook(root, "session-start.js", { hook_event_name: "SessionStart", source: "resume", session_id: "sess-42" });
     expect(fs.existsSync(ticketFile(root, "sess-42"))).toBe(false);
   });
+
+  it("SessionStart with a pending ticket reconciles the interrupted turn's changes before clearing", () => {
+    const root = project();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    execFileSync("git", ["-c", "user.email=t@t.t", "-c", "user.name=t", "commit", "--allow-empty", "-qm", "init"], { cwd: root });
+    // Session starts (this snapshots the git change baseline)...
+    runHook(root, "session-start.js", { hook_event_name: "SessionStart", source: "startup", session_id: "sess-r" });
+    // ...the turn creates a file out-of-band (Bash/external), then hits the limit.
+    fs.writeFileSync(path.join(root, "orphan.ts"), "export const x = 1;\n");
+    runHook(root, "stop-failure.js", { hook_event_name: "StopFailure", session_id: "sess-r", error: "rate_limit" });
+    // Resume: SessionStart must reconcile THEN drop the ticket.
+    runHook(root, "session-start.js", { hook_event_name: "SessionStart", source: "resume", session_id: "sess-r" });
+    expect(fs.existsSync(ticketFile(root, "sess-r"))).toBe(false);
+
+    const sessDir = path.join(root, ".packmind", "state", "sessions");
+    const rec = JSON.parse(fs.readFileSync(path.join(sessDir, fs.readdirSync(sessDir)[0]), "utf8"));
+    const cs = JSON.parse(
+      fs.readFileSync(path.join(root, ".packmind", "state", "change-sets", `${rec.id}.json`), "utf8"),
+    );
+    expect(JSON.stringify(cs.changes)).toContain("orphan.ts");
+  });
 });
