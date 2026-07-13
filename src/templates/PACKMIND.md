@@ -1,79 +1,34 @@
-# PACKMIND.md - Operating Protocol
+# PackMind brain
 
-PackMind gives you (Claude) a persistent second brain for this project, stored in
-`.packmind/`. It surfaces context automatically through hooks and exposes tools
-through the **packmind** MCP server. Follow this protocol each session.
+This directory is the project's memory for Claude Code. The durable files are
+**committed and shared**: every teammate and every future session starts from
+the same knowledge. Review changes to them in pull requests like any other
+code.
 
-## Before reading a file
-- Check `map.md` first - if a file's description and token/cost estimate answer
-  your question, don't open the whole file.
-- Don't re-read a file you already read this session unless it changed.
+## Files
 
-## Before writing code
-- Heed any guardrail warnings (they reference `policy.json` and the secrets
-  denylist). A blocked write means policy forbids it - choose another path.
-- Honor the `## Never Do` list in `knowledge.md`.
+- **`knowledge.md`** - durable lessons about this project. The `## Never Do`
+  section is surfaced to Claude at the start of every session; keep it short
+  and non-negotiable. Add entries with the `remember` MCP tool or by hand.
+- **`solutions.json`** - error-to-fix pairs recorded via the `record_solution`
+  MCP tool. When a new prompt matches a past error, the fix is surfaced
+  automatically before work starts.
+- **`handoff.md`** - where the last session left off. Set it with the `handoff`
+  MCP tool before stopping; it is injected at the next session start.
+- **`policy.json`** - guard rules checked before every file write.
+- **`config.json`** - PackMind settings for this project.
 
-## Lean by default: the decision ladder
-The best code is the code you don't write. Once you understand the problem (read
-the code the change touches, trace the real flow), stop at the first rung that holds:
-1. Does this need to exist at all? If not, don't build it.
-2. Already in this codebase? Reuse the helper, util, or pattern.
-3. Standard library? Use it.
-4. Native platform feature? Use it.
-5. Already-installed dependency? Use it.
-6. Can it be one line? Make it one line.
-7. Only then: write the minimum that works.
+Runtime state (resume tickets, locks) also lives here but is gitignored; only
+the files above are meant to be committed.
 
-Never simplify away input validation at trust boundaries, error handling that
-prevents data loss, security, or accessibility. Non-trivial logic leaves one
-runnable check behind. Lean means efficient, not careless.
+## Overriding a guard rule
 
-When you take a deliberate shortcut, mark it with a `packmind:` comment naming the
-known ceiling and the upgrade path, e.g. `// packmind: O(n^2) scan; upgrade to an
-index if N grows`.
+Rules are resolved by id and the local rule wins. To harden the built-in
+secret-file warning into a hard block, add to `policy.json`:
 
-Mode is set by `guard.lean.mode` in `config.json` (`off` | `lite` | `full`).
+```json
+{ "rules": [{ "id": "no-secret-files", "severity": "block" }] }
+```
 
-## Use the MCP tools
-- `recall("…")` - semantic search across project memory. Use it before
-  investigating a bug or re-deriving how something works.
-- `remember(note, kind)` - save a preference, decision, never-do rule, or note.
-- `record_solution(error, cause, fix, tags)` - log a fix so it's never
-  rediscovered.
-- `record_evidence(check, detail?)` - mark a practice check satisfied this session
-  (e.g. tests ran, a workflow was reviewed, a change is doc-only) so its Stop-hook
-  nudge stays quiet. Call it once you've done what a practice reminder asked for.
-- `project_map(filter?)` - list files with descriptions and token estimates.
-- `usage_report()` - token usage and dollar cost so far.
-- `insights()` - where tokens go and what PackMind saved (savings, coverage, heaviest files).
-- `handoff("get"|"set", content?)` - read or update the resume note.
-- `debt()`: list the `packmind:` deferred-shortcut markers left in the code.
-- `review(base?)`: package the current diff with the lean ladder to check a change for over-engineering.
-- `compress(content, kind?)`: shelve a large non-source output and get a compact preview + hash.
-- `retrieve(hash)`: get back the full original a `compress` call stored.
-
-## Compressing large output
-When you are holding a big non-source blob (a long log, a large JSON or API response, a
-command or search dump) that you do not need verbatim, call `compress(content)`. It stores
-the original locally and returns a compact, reversible preview plus a hash; call
-`retrieve(hash)` when you need the full text back. Never compress source code you need exact.
-
-## When you finish meaningful work
-- `remember` durable lessons/preferences/decisions.
-- `record_solution` for any real bug you fixed.
-- `handoff("set", …)` with where things stand and what's next.
-
-## Files in `.packmind/`
-| File | Purpose |
-|------|---------|
-| `map.md` | File map: description, token estimate, est. read cost |
-| `knowledge.md` | Preferences, decisions, never-do list, notes |
-| `journal.md` | Chronological action log + session summaries |
-| `solutions.json` | Known bugs and their fixes |
-| `usage.json` | Token + dollar-cost ledger |
-| `handoff.md` | Session resume note |
-| `policy.json` | Guardrail rules |
-| `config.json` | PackMind configuration |
-| `recall/` | Local semantic index (never leaves your machine) |
-| `compress/` | Reversible store for shelved large outputs |
+One id, one rule: the local definition replaces the built-in one instead of
+stacking on top of it.
