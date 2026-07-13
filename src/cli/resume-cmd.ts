@@ -151,7 +151,6 @@ export async function runResume(
   }
 
   // Duplicate protection: exclusive blocked->launching transition on the ticket.
-  deps.log("Fermez l'ancien processus Claude avant de continuer.");
   if (!tryAcquireLaunch(projectRoot, ticket.sessionId, new Date(deps.now()).toISOString())) {
     deps.err("✗ another `packmind resume` is already launching this session (ticket is not in blocked state).");
     return 1;

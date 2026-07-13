@@ -6,18 +6,10 @@ import { runInit } from "../src/cli/init.js";
 import { runUpdate } from "../src/cli/update.js";
 import { buildHookMap, HOOK_SCRIPTS } from "../src/adapters/claude-code.js";
 
-const built = fs.existsSync(path.resolve("dist/hooks/session-end.js"));
+const built = fs.existsSync(path.resolve("dist/hooks/stop-failure.js"));
 
-describe("adapter registers the SessionEnd hook", () => {
-  it("buildHookMap includes SessionEnd -> session-end.js", () => {
-    const map = buildHookMap();
-    expect(map.SessionEnd).toBeTruthy();
-    expect(JSON.stringify(map.SessionEnd)).toContain("session-end.js");
-  });
-});
-
-describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a hook projects must receive)", () => {
-  it("copies session-end.js into .packmind/hooks and registers the SessionEnd hook", () => {
+describe.skipIf(!built)("[P1] init installs every registered hook script", () => {
+  it("copies each hook into .packmind/hooks and registers its event", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-install-"));
     const prev = process.env.PACKMIND_ROOT;
     const log = console.log;
@@ -33,36 +25,47 @@ describe.skipIf(!built)("[P1] init installs session-end.js (adapter registers a 
 
     // Every registered hook script must be copied into the project (else the
     // registered hook points at a file that never gets installed).
-    for (const script of ["session-end.js", "post-tool-batch.js", "file-changed.js", "stop-failure.js"]) {
-      expect(fs.existsSync(path.join(dir, ".packmind", "hooks", script))).toBe(true);
+    for (const script of HOOK_SCRIPTS) {
+      expect(fs.existsSync(path.join(dir, ".packmind", "hooks", script)), script).toBe(true);
     }
 
     const settings = JSON.parse(fs.readFileSync(path.join(dir, ".claude", "settings.json"), "utf8"));
-    expect(JSON.stringify(settings.hooks.SessionEnd)).toContain("session-end.js");
-    expect(JSON.stringify(settings.hooks.PostToolBatch)).toContain("post-tool-batch.js");
-    expect(JSON.stringify(settings.hooks.FileChanged)).toContain("file-changed.js");
+    expect(JSON.stringify(settings.hooks.SessionStart)).toContain("session-start.js");
+    expect(JSON.stringify(settings.hooks.UserPromptSubmit)).toContain("prompt-submit.js");
+    expect(JSON.stringify(settings.hooks.PreToolUse)).toContain("pre-write.js");
     expect(JSON.stringify(settings.hooks.StopFailure)).toContain("stop-failure.js");
+
+    // The MCP server is registered through npx so a project-local (non-global)
+    // install still resolves the bin when Claude Code spawns it.
+    const mcp = JSON.parse(fs.readFileSync(path.join(dir, ".mcp.json"), "utf8"));
+    expect(mcp.mcpServers.packmind).toEqual({ command: "npx", args: ["packmind", "mcp"] });
   });
 });
 
 describe("buildHookMap registers every shipped lifecycle event", () => {
-  it("has an entry for each new event so doctor's matrix check can verify it", () => {
+  it("has an entry for each event so doctor's matrix check can verify it", () => {
     const map = buildHookMap();
     for (const [event, script] of [
       ["SessionStart", "session-start.js"],
-      ["SessionEnd", "session-end.js"],
-      ["PostToolBatch", "post-tool-batch.js"],
-      ["FileChanged", "file-changed.js"],
-      ["Stop", "stop.js"],
+      ["UserPromptSubmit", "prompt-submit.js"],
+      ["PreToolUse", "pre-write.js"],
       ["StopFailure", "stop-failure.js"],
     ] as const) {
       expect(JSON.stringify(map[event] ?? []), event).toContain(script);
     }
+    // And nothing else: a registered event whose hook was removed would be a
+    // silent no-op pointing at a file init never copies.
+    expect(Object.keys(map).sort()).toEqual(["PreToolUse", "SessionStart", "StopFailure", "UserPromptSubmit"]);
   });
 
   it("StopFailure is registered with the exact rate_limit matcher", () => {
     const map = buildHookMap();
     expect(map.StopFailure[0].matcher).toBe("rate_limit");
+  });
+
+  it("PreToolUse only matches write-shaped tools", () => {
+    const map = buildHookMap();
+    expect(map.PreToolUse[0].matcher).toBe("Write|Edit|MultiEdit");
   });
 
   it("every script buildHookMap references is in the canonical HOOK_SCRIPTS list", () => {
@@ -79,8 +82,8 @@ describe("buildHookMap registers every shipped lifecycle event", () => {
   });
 });
 
-describe.skipIf(!built)("[P1] update installs newly-shipped hooks (0.9.x -> 1.0 upgrade path)", () => {
-  it("packmind update copies stop-failure.js into an existing project", () => {
+describe.skipIf(!built)("[P1] update installs newly-shipped hooks", () => {
+  it("packmind update copies a missing hook script into an existing project", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm-update-"));
     const prev = process.env.PACKMIND_ROOT;
     const log = console.log;
@@ -88,7 +91,7 @@ describe.skipIf(!built)("[P1] update installs newly-shipped hooks (0.9.x -> 1.0 
     console.log = () => {};
     try {
       runInit();
-      // Simulate a 0.9.2 install: the hook file does not exist yet.
+      // Simulate an older install: the hook file does not exist yet.
       fs.rmSync(path.join(dir, ".packmind", "hooks", "stop-failure.js"), { force: true });
       runUpdate();
       expect(fs.existsSync(path.join(dir, ".packmind", "hooks", "stop-failure.js"))).toBe(true);

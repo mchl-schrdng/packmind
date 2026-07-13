@@ -95,12 +95,11 @@ describe("runResume", () => {
     expect(f.spawned).toEqual([]);
   });
 
-  it("reset passed -> asks to close the old Claude, launches exactly once", async () => {
+  it("reset passed -> launches exactly once", async () => {
     const root = project();
     blockTicket(root, "s1", PAST, PAST);
     const f = fakeDeps(NOW);
     expect(await run(root, {}, f)).toBe(0);
-    expect(f.logs.join("\n")).toContain("Fermez l'ancien processus Claude avant de continuer.");
     expect(f.spawned).toEqual(["s1"]);
   });
 

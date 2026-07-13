@@ -11,10 +11,6 @@ import {
   readText,
   parseInput,
   readStdin,
-  sessionRawKey,
-  readSessionFor,
-  updateSession,
-  leanNudge,
   emitContext,
   emitDeny,
   type Rule,
@@ -43,9 +39,9 @@ async function main(): Promise<void> {
   const content = pendingContent(input);
   const cfg = hookConfig();
 
-  // The effective guard set (default rules + active practice packs + local
-  // policy.json) is pre-resolved by init/update; fall back to policy.json for a
-  // project that predates it.
+  // The effective guard set (default rules overlaid by local policy.json) is
+  // pre-resolved by init/update; fall back to policy.json for a project that
+  // predates it.
   const effective = readJson<{ rules?: Rule[] }>(brainPath("guard.effective.json"), {});
   const rules = effective.rules ?? readJson<{ rules?: Rule[] }>(brainPath("policy.json"), {}).rules ?? [];
   const { findings, block } = evaluateWrite(rules, {
@@ -92,20 +88,6 @@ async function main(): Promise<void> {
       if (token && new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(content)) {
         notes.push(`knowledge.md Never-Do: "${entry}"`);
       }
-    }
-  }
-
-  // Lean-mode nudge: a reuse-first reminder at the moment code is about to land.
-  // In "lite" it latches once per session, so persist the session when it fires.
-  const rawKey = sessionRawKey(input);
-  const session = rawKey ? readSessionFor(rawKey) : null;
-  if (session && rawKey) {
-    const lean = leanNudge(cfg.leanMode, session);
-    if (lean) notes.push(lean);
-    // Persist only the latch, and inside a lock, so a parallel post-write's
-    // token/write accounting isn't clobbered by this read-modify-write.
-    if (cfg.leanMode === "lite" && session.notifiedLean) {
-      updateSession(rawKey, (s) => { s.notifiedLean = true; });
     }
   }
 

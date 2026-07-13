@@ -10,7 +10,7 @@ const built = fs.existsSync(path.join(repo, "dist", "hooks", "stop-failure.js"))
 
 // Real-package E2E: pack the tarball npm would publish, extract it, link the
 // repo's node_modules for runtime deps (offline), and drive the INSTALLED
-// files: init, the compiled stop-failure hook, a ticket, and maintain.
+// files: init, the compiled stop-failure hook, a ticket, and doctor.
 describe.skipIf(!built)("[P1] published tarball", () => {
   let pkgDir: string;
 
@@ -31,7 +31,7 @@ describe.skipIf(!built)("[P1] published tarball", () => {
     fs.symlinkSync(path.join(repo, "node_modules"), path.join(pkgDir, "node_modules"));
   }, 120_000);
 
-  it("init + stop-failure hook + resume ticket + maintain work from the installed package", () => {
+  it("init + stop-failure hook + resume ticket + doctor work from the installed package", () => {
     const project = fs.mkdtempSync(path.join(os.tmpdir(), "pm-pack-proj-"));
     const env = { ...process.env, PACKMIND_ROOT: project };
     const cli = path.join(pkgDir, "dist", "bin", "packmind.js");
@@ -49,21 +49,21 @@ describe.skipIf(!built)("[P1] published tarball", () => {
     });
     expect(readTicket(project, "pack-1")!.status).toBe("blocked");
 
-    // resume and maintain are in the packaged --help
+    // the packaged --help lists exactly the 2.0 command surface
     const help = execFileSync(process.execPath, [cli, "--help"], { cwd: project, env, encoding: "utf8" });
-    expect(help).toContain("resume");
-    expect(help).toContain("maintain");
+    for (const cmd of ["init", "status", "resume", "update", "doctor", "mcp"]) {
+      expect(help).toContain(cmd);
+    }
+    for (const gone of ["maintain", "insights", "dashboard", "compress"]) {
+      expect(help).not.toContain(gone);
+    }
 
-    // maintain from the packaged CLI: exit 0, quiet
-    const ok = spawnSync(process.execPath, [cli, "maintain", "--quiet"], { cwd: project, env, encoding: "utf8" });
-    expect(ok.stderr).toBe("");
-    expect(ok.status).toBe(0);
-
-    // invalid keep-backups: exit 1; concurrent lock: exit 3
-    const bad = spawnSync(process.execPath, [cli, "maintain", "--quiet", "--keep-backups", "0"], { cwd: project, env, encoding: "utf8" });
-    expect(bad.status).toBe(1);
-    fs.mkdirSync(path.join(project, ".packmind", "state", "maintain.lock"), { recursive: true });
-    const locked = spawnSync(process.execPath, [cli, "maintain", "--quiet"], { cwd: project, env, encoding: "utf8" });
-    expect(locked.status).toBe(3);
+    // doctor from the packaged CLI runs clean; status surfaces the ticket
+    const doc = spawnSync(process.execPath, [cli, "doctor"], { cwd: project, env, encoding: "utf8" });
+    expect(doc.status).toBe(0);
+    expect(doc.stdout).toContain("registered project");
+    const st = spawnSync(process.execPath, [cli, "status"], { cwd: project, env, encoding: "utf8" });
+    expect(st.status).toBe(0);
+    expect(st.stdout).toContain("blocked ticket for session pack-1");
   }, 120_000);
 });

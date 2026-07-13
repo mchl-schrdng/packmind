@@ -14,19 +14,19 @@ function readJson(p: string): any {
 
 describe("config deep-merge (preservation + forward-compat)", () => {
   it("preserves user values and adds new keys", () => {
-    const merged = deepMerge(DEFAULT_CONFIG, { model: "claude-haiku-4-5", recall: { topK: 99 } });
-    expect(merged.model).toBe("claude-haiku-4-5");
-    expect(merged.recall.topK).toBe(99);
-    expect(merged.recall.enabled).toBe(true); // untouched default
-    expect(merged.guard.blockSecrets).toBe(false);
+    const merged = deepMerge(DEFAULT_CONFIG, { guard: { blockSecrets: true } });
+    expect(merged.guard.blockSecrets).toBe(true);
+    expect(merged.guard.extraSecretGlobs).toEqual([]); // untouched default
+    expect(merged.claude.settingsPath).toBe(".claude/settings.json");
   });
-  it("loadConfig fills defaults for a partial file", () => {
+  it("loadConfig fills defaults for a partial file (and tolerates 1.0-era keys)", () => {
     const dir = tmp();
     const p = path.join(dir, "config.json");
-    fs.writeFileSync(p, JSON.stringify({ version: 1, model: "claude-sonnet-4-6" }));
+    // A config written by an older version: extra keys must not crash accessors.
+    fs.writeFileSync(p, JSON.stringify({ version: 1, model: "claude-sonnet-4-6", recall: { topK: 99 } }));
     const c = loadConfig(p);
-    expect(c.model).toBe("claude-sonnet-4-6");
-    expect(c.map.maxFiles).toBe(DEFAULT_CONFIG.map.maxFiles);
+    expect(c.guard.blockSecrets).toBe(false);
+    expect(c.guard.extraSecretGlobs).toEqual([]);
     expect(c.claude.settingsPath).toBe(".claude/settings.json");
   });
 });
@@ -39,28 +39,27 @@ describe("Claude Code adapter", () => {
     registerHooks(p);
     const s = readJson(p);
     expect(Object.keys(s.hooks)).toEqual(
-      expect.arrayContaining(["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"]),
+      expect.arrayContaining(["SessionStart", "UserPromptSubmit", "PreToolUse", "StopFailure"]),
     );
     const tagged = Object.values(s.hooks).flat().filter((g: any) => g._managedBy === MANAGED_BY);
-    expect(tagged.length).toBeGreaterThanOrEqual(7);
+    expect(tagged.length).toBe(4);
   });
 
   it("is idempotent and preserves user hooks", () => {
     const dir = tmp();
     const p = path.join(dir, "settings.json");
-    fs.writeFileSync(p, JSON.stringify({ hooks: { Stop: [{ matcher: "", hooks: [{ type: "command", command: "mine" }] }] } }));
+    fs.writeFileSync(p, JSON.stringify({ hooks: { SessionStart: [{ matcher: "", hooks: [{ type: "command", command: "mine" }] }] } }));
     registerHooks(p);
     registerHooks(p);
     const s = readJson(p);
-    const tagged = Object.values(s.hooks).flat().filter((g: any) => g._managedBy === MANAGED_BY);
-    const mine = s.hooks.Stop.filter((g: any) => g._managedBy !== MANAGED_BY);
+    const mine = s.hooks.SessionStart.filter((g: any) => g._managedBy !== MANAGED_BY);
     expect(mine).toHaveLength(1);
-    const stopTagged = s.hooks.Stop.filter((g: any) => g._managedBy === MANAGED_BY);
-    expect(stopTagged).toHaveLength(1); // not duplicated
+    const startTagged = s.hooks.SessionStart.filter((g: any) => g._managedBy === MANAGED_BY);
+    expect(startTagged).toHaveLength(1); // not duplicated
     unregisterHooks(p);
     const after = readJson(p);
     expect(Object.values(after.hooks).flat().filter((g: any) => g._managedBy === MANAGED_BY)).toHaveLength(0);
-    expect(after.hooks.Stop[0].hooks[0].command).toBe("mine");
+    expect(after.hooks.SessionStart[0].hooks[0].command).toBe("mine");
   });
 
   it("refuses to clobber a settings.json that exists but is malformed", () => {
@@ -80,7 +79,7 @@ describe("Claude Code adapter", () => {
     fs.writeFileSync(p, JSON.stringify({ mcpServers: { other: { command: "x" } } }));
     registerMcp(p);
     const s = readJson(p);
-    expect(s.mcpServers.packmind).toEqual({ command: "packmind", args: ["mcp"] });
+    expect(s.mcpServers.packmind).toEqual({ command: "npx", args: ["packmind", "mcp"] });
     expect(s.mcpServers.other).toEqual({ command: "x" });
   });
 });
