@@ -666,25 +666,28 @@ export function resumeTicketFile(sessionId: string): string {
 }
 
 /**
- * Extract a rate-limit reset time ONLY when the payload clearly carries one:
- * an ISO/parseable `reset_at`-style string, or a positive numeric
- * `retry_after` in seconds. Anything ambiguous returns undefined - a reset
- * time is never invented. (The official StopFailure docs define no such
- * field, so this is purely opportunistic.)
+ * Extract a rate-limit reset time from the DOCUMENTED StopFailure surface:
+ * `error_details`, a human-readable string (e.g. "Rate limit exceeded.
+ * Please retry after 60 seconds."). No structured reset field exists in the
+ * docs, so only two clear patterns are accepted - a "retry after/in N
+ * seconds|minutes|hours" phrase, or an explicit ISO-8601 timestamp. Anything
+ * else returns undefined: a reset time is never invented.
  */
 export function extractResetAt(input: Record<string, any>, nowMs: number): string | undefined {
-  for (const key of ["reset_at", "resetAt", "rate_limit_reset_at", "usage_limit_reset_at"]) {
-    const v = input?.[key];
-    if (typeof v === "string" && v.trim()) {
-      const ms = Date.parse(v);
-      if (Number.isFinite(ms) && ms > 0) return new Date(ms).toISOString();
-    }
+  const details = input?.error_details;
+  if (typeof details !== "string" || !details.trim()) return undefined;
+
+  const rel = details.match(/retry\s+(?:after|in)\s+(\d+)\s*(seconds?|minutes?|hours?)/i);
+  if (rel) {
+    const n = Number(rel[1]);
+    const unit = rel[2].toLowerCase();
+    const ms = n * (unit.startsWith("h") ? 3_600_000 : unit.startsWith("m") ? 60_000 : 1000);
+    if (n > 0) return new Date(nowMs + ms).toISOString();
   }
-  for (const key of ["retry_after", "retry_after_seconds", "retryAfterSeconds"]) {
-    const v = input?.[key];
-    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
-      return new Date(nowMs + v * 1000).toISOString();
-    }
+  const iso = details.match(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})/);
+  if (iso) {
+    const ms = Date.parse(iso[0]);
+    if (Number.isFinite(ms)) return new Date(ms).toISOString();
   }
   return undefined;
 }

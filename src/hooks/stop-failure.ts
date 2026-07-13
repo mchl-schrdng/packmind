@@ -20,8 +20,9 @@ async function main(): Promise<void> {
   const sid = typeof input.session_id === "string" && input.session_id.trim() ? input.session_id : null;
   if (!sid) process.exit(0);
 
-  // The registered matcher already filters on rate_limit; if the payload
-  // carries an explicit error type anyway, honor it and skip anything else.
+  // The registered matcher already filters on rate_limit. The payload's
+  // official field is `error`; `error_type` is read purely defensively in
+  // case a Claude Code version ships the enum under that name instead.
   const err =
     typeof input.error === "string" ? input.error
     : typeof input.error_type === "string" ? input.error_type

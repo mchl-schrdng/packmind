@@ -8,22 +8,29 @@ import { readTicket, ticketFile, blockTicket, tryAcquireLaunch } from "../src/st
 
 const NOW = Date.parse("2026-07-13T10:00:00.000Z");
 
-describe("extractResetAt never invents a reset time", () => {
+describe("extractResetAt only trusts the documented error_details string", () => {
   it("returns undefined when nothing usable is present", () => {
     expect(extractResetAt({}, NOW)).toBeUndefined();
     expect(extractResetAt({ error: "rate_limit" }, NOW)).toBeUndefined();
-    expect(extractResetAt({ reset_at: "soon" }, NOW)).toBeUndefined();
-    expect(extractResetAt({ reset_at: "" }, NOW)).toBeUndefined();
-    expect(extractResetAt({ retry_after: "later" }, NOW)).toBeUndefined();
-    expect(extractResetAt({ retry_after: -5 }, NOW)).toBeUndefined();
+    expect(extractResetAt({ error_details: "Rate limit exceeded." }, NOW)).toBeUndefined();
+    expect(extractResetAt({ error_details: "" }, NOW)).toBeUndefined();
+    expect(extractResetAt({ error_details: 42 }, NOW)).toBeUndefined();
   });
-  it("accepts a clear ISO reset_at", () => {
-    expect(extractResetAt({ reset_at: "2026-07-13T11:00:00.000Z" }, NOW)).toBe(
-      "2026-07-13T11:00:00.000Z",
-    );
+  it("ignores undocumented structured fields (never invented from guesses)", () => {
+    expect(extractResetAt({ reset_at: "2026-07-13T11:00:00.000Z" }, NOW)).toBeUndefined();
+    expect(extractResetAt({ retry_after: 3600 }, NOW)).toBeUndefined();
   });
-  it("accepts a clear numeric retry_after in seconds", () => {
-    expect(extractResetAt({ retry_after: 3600 }, NOW)).toBe("2026-07-13T11:00:00.000Z");
+  it('parses the documented "retry after N seconds" phrasing', () => {
+    expect(
+      extractResetAt({ error_details: "Rate limit exceeded. Please retry after 60 seconds." }, NOW),
+    ).toBe("2026-07-13T10:01:00.000Z");
+    expect(extractResetAt({ error_details: "retry in 2 minutes" }, NOW)).toBe("2026-07-13T10:02:00.000Z");
+    expect(extractResetAt({ error_details: "Retry after 1 hour." }, NOW)).toBe("2026-07-13T11:00:00.000Z");
+  });
+  it("parses an explicit ISO timestamp inside error_details", () => {
+    expect(
+      extractResetAt({ error_details: "Your limit resets at 2026-07-13T11:00:00Z." }, NOW),
+    ).toBe("2026-07-13T11:00:00.000Z");
   });
 });
 
