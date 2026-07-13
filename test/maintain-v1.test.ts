@@ -10,6 +10,8 @@ import {
   runMaintain,
 } from "../src/cli/maintain-cmd.js";
 import { pruneStaleSessions } from "../src/state/session.js";
+import { runDoctor } from "../src/cli/doctor.js";
+import { registerProject } from "../src/cli/registry.js";
 
 // ESM namespaces aren't spyable in place; spy-mock the whole module (real
 // implementations still run) so the never-spawns test can observe calls.
@@ -103,6 +105,33 @@ describe("runMaintain exit codes", () => {
     expect(vi.mocked(childProcess.execFile)).not.toHaveBeenCalled();
     expect(vi.mocked(childProcess.execFileSync)).not.toHaveBeenCalled();
     expect(vi.mocked(childProcess.exec)).not.toHaveBeenCalled();
+  });
+});
+
+describe("doctor --fix", () => {
+  it("removes a maintain lock older than six hours, keeps a fresh one", () => {
+    const staleRoot = project();
+    const freshRoot = project();
+    registerProject(staleRoot, "1.0.0");
+    registerProject(freshRoot, "1.0.0");
+    for (const root of [staleRoot, freshRoot]) {
+      const dir = maintainLockDir(root);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, "lock.json"), JSON.stringify({ pid: 1, startedAt: "x", owner: "o" }));
+    }
+    const old = new Date(Date.now() - 7 * 3600 * 1000);
+    fs.utimesSync(maintainLockDir(staleRoot), old, old);
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    runDoctor({ fix: true });
+    expect(fs.existsSync(maintainLockDir(staleRoot))).toBe(false);
+    expect(fs.existsSync(maintainLockDir(freshRoot))).toBe(true);
+
+    // without --fix, nothing is ever removed
+    const dir = maintainLockDir(freshRoot);
+    fs.utimesSync(dir, old, old);
+    runDoctor({});
+    expect(fs.existsSync(dir)).toBe(true);
   });
 });
 

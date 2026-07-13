@@ -113,7 +113,11 @@ export function createProgram(): Command {
     .option("--check", "Only report whether a newer version exists (no changes)")
     .action((o) => runUpgrade(o));
 
-  program.command("doctor").description("Diagnose projects, hooks, and MCP registration").action(runDoctor);
+  program
+    .command("doctor")
+    .description("Diagnose projects, hooks, and MCP registration")
+    .option("--fix", "Repair what is safely repairable (e.g. remove a maintain lock older than 6h)")
+    .action((o) => runDoctor(o));
 
   program.command("mcp").description("Run the PackMind MCP server (stdio)").action(() => runMcp());
 

@@ -6,13 +6,14 @@ import { loadConfig } from "../state/schema.js";
 import { brain } from "../state/files.js";
 import { buildHookMap } from "../adapters/claude-code.js";
 import { pruneRegistry } from "./registry.js";
+import { maintainLockDir } from "./maintain-cmd.js";
 
 const HOOK_SCRIPTS = [
   "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
   "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
 ];
 
-export function runDoctor(): void {
+export function runDoctor(opts: { fix?: boolean } = {}): void {
   console.log(chalk.bold.cyan("\nPackMind doctor\n"));
   const projects = pruneRegistry();
   if (projects.length === 0) {
@@ -58,6 +59,30 @@ export function runDoctor(): void {
       validConfig = false;
     }
     ok(validConfig, "config.json valid");
+
+    // Stale maintain lock: a crashed cron run can leave maintain.lock behind.
+    // maintain itself never steals it; only an explicit --fix removes one, and
+    // only when it is older than six hours.
+    const lockDir = maintainLockDir(p.root);
+    if (fs.existsSync(lockDir)) {
+      let ageMs = 0;
+      try {
+        ageMs = Date.now() - fs.statSync(lockDir).mtimeMs;
+      } catch {
+        /* vanished between the check and the stat */
+      }
+      const stale = ageMs > 6 * 60 * 60 * 1000;
+      if (stale && opts.fix) {
+        try {
+          fs.rmSync(lockDir, { recursive: true, force: true });
+          ok(true, "stale maintain lock removed (>6h)");
+        } catch (err) {
+          ok(false, `could not remove stale maintain lock: ${(err as Error).message}`);
+        }
+      } else {
+        ok(!stale, stale ? "stale maintain lock (>6h) - run `packmind doctor --fix`" : "maintain lock present (maintenance running)");
+      }
+    }
   }
   console.log("");
 }
