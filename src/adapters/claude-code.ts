@@ -20,8 +20,7 @@ const HOOKS = "$CLAUDE_PROJECT_DIR/.packmind/hooks";
  * silent no-op (the 0.9.2 -> 1.0.0 upgrade bug).
  */
 export const HOOK_SCRIPTS = [
-  "runtime.js", "session-start.js", "session-end.js", "post-tool-batch.js", "file-changed.js", "prompt-submit.js", "pre-read.js",
-  "post-read.js", "pre-write.js", "post-write.js", "stop.js", "stop-failure.js",
+  "runtime.js", "session-start.js", "prompt-submit.js", "pre-write.js", "stop-failure.js",
 ];
 
 interface HookCmd {
@@ -52,22 +51,10 @@ export function buildHookMap(): HookMap {
   return {
     SessionStart: [group("", "session-start.js", 5)],
     UserPromptSubmit: [group("", "prompt-submit.js", 5)],
-    PreToolUse: [
-      group("Read", "pre-read.js", 5),
-      group("Write|Edit|MultiEdit", "pre-write.js", 5),
-    ],
-    PostToolUse: [
-      group("Read", "post-read.js", 5),
-      group("Write|Edit|MultiEdit", "post-write.js", 10),
-    ],
-    Stop: [group("", "stop.js", 10)],
+    PreToolUse: [group("Write|Edit|MultiEdit", "pre-write.js", 5)],
     // StopFailure's matcher filters on error type; only rate_limit is handled.
     // Claude ignores this hook's output entirely - it can only record state.
     StopFailure: [group("rate_limit", "stop-failure.js", 5)],
-    SessionEnd: [group("", "session-end.js", 10)],
-    PostToolBatch: [group("", "post-tool-batch.js", 10)],
-    // FileChanged fires for the paths SessionStart emits via watchPaths.
-    FileChanged: [group("", "file-changed.js", 5)],
   };
 }
 
@@ -115,6 +102,8 @@ export function registerMcp(mcpJsonPath: string): void {
   const config = readJsonStrict<{ mcpServers?: Record<string, unknown> }>(mcpJsonPath, {});
   backupOnce(mcpJsonPath);
   config.mcpServers = config.mcpServers ?? {};
-  config.mcpServers.packmind = { command: "packmind", args: ["mcp"] };
+  // npx resolves the bin for both global and project-local installs; a bare
+  // "packmind" breaks when the package is only in the project's node_modules.
+  config.mcpServers.packmind = { command: "npx", args: ["packmind", "mcp"] };
   writeJson(mcpJsonPath, config);
 }

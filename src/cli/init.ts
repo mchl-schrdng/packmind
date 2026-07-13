@@ -4,9 +4,8 @@ import chalk from "chalk";
 import { findRoot, isHome } from "../state/project.js";
 import { brain } from "../state/files.js";
 import { loadConfig } from "../state/schema.js";
-import { scanProject } from "../state/mapper.js";
 import { registerHooks, registerMcp, HOOK_SCRIPTS } from "../adapters/claude-code.js";
-import { writeEffective } from "../guard/practices.js";
+import { writeEffective } from "../guard/policy.js";
 import { ensureDir } from "../util/paths.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { registerProject } from "./registry.js";
@@ -42,7 +41,6 @@ export function runInit(): void {
   const b = brain(projectRoot);
   ensureDir(b.hooksDir);
   ensureDir(path.join(b.dir, "state"));
-  ensureDir(b.recallDir);
 
   const fresh = !fs.existsSync(b.config);
   seedBrainFiles(b.dir);
@@ -55,21 +53,16 @@ export function runInit(): void {
   registerHooks(path.join(projectRoot, config.claude.settingsPath));
   registerMcp(path.join(projectRoot, ".mcp.json"));
   wireClaudeMd(projectRoot, config.claude.claudeMdPath);
-  writeEffective(projectRoot, config); // resolve default + practice packs + local policy
-
-  if (config.map.autoScanOnInit) {
-    const count = scanProject(projectRoot, config);
-    console.log(chalk.cyan(`• Mapped ${count} files into map.md`));
-  }
+  writeEffective(projectRoot); // resolve default + local policy into guard.effective.json
 
   registerProject(projectRoot, pkgVersion());
 
   console.log(
     "\n" + chalk.bold.cyan("PackMind") + ` ${fresh ? "initialized" : "updated"} in ` +
       chalk.bold(path.relative(process.cwd(), projectRoot) || ".") + "\n" +
-      `  ${chalk.green("✓")} .packmind/ created (map, knowledge, journal, usage, policy, recall)\n` +
+      `  ${chalk.green("✓")} .packmind/ created (knowledge, solutions, handoff, policy)\n` +
       `  ${chalk.green("✓")} Claude Code hooks registered (tagged _managedBy: packmind)\n` +
       `  ${chalk.green("✓")} packmind MCP server registered in .mcp.json\n\n` +
-      `Run ${chalk.bold("packmind index")} to build the semantic index, then use ${chalk.bold("claude")} as normal.\n`,
+      `Use ${chalk.bold("claude")} as normal. Commit .packmind/ so your team shares the memory.\n`,
   );
 }

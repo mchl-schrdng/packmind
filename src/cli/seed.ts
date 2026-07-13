@@ -4,8 +4,7 @@ import { TEMPLATES_DIR } from "./locate.js";
 
 /** Brain files created once and never overwritten afterward (they hold user data). */
 export const CREATE_IF_MISSING = [
-  "config.json", "knowledge.md", "journal.md", "map.md", "handoff.md",
-  "solutions.json", "usage.json", "identity.md", "policy.json",
+  "config.json", "knowledge.md", "handoff.md", "solutions.json", "policy.json",
 ];
 
 function copyTemplate(name: string, dest: string): void {
@@ -16,11 +15,7 @@ function copyTemplate(name: string, dest: string): void {
 function seedIfMissing(name: string, dir: string): void {
   const dest = path.join(dir, name);
   if (fs.existsSync(dest)) return;
-  let content = fs.readFileSync(path.join(TEMPLATES_DIR, name), "utf8");
-  if (name === "usage.json") {
-    content = content.replace('"createdAt": ""', `"createdAt": "${new Date().toISOString()}"`);
-  }
-  fs.writeFileSync(dest, content);
+  fs.writeFileSync(dest, fs.readFileSync(path.join(TEMPLATES_DIR, name), "utf8"));
 }
 
 /**

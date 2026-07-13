@@ -5,11 +5,10 @@ import { writeJson } from "../util/fs-atomic.js";
 import { loadConfig } from "../state/schema.js";
 import { brain } from "../state/files.js";
 import { registerHooks, registerMcp, HOOK_SCRIPTS } from "../adapters/claude-code.js";
-import { writeEffective } from "../guard/practices.js";
+import { writeEffective } from "../guard/policy.js";
 import { TEMPLATES_DIR, HOOKS_DIST_DIR, pkgVersion } from "./locate.js";
 import { pruneRegistry, registerProject, type RegistryEntry } from "./registry.js";
 import { seedBrainFiles } from "./seed.js";
-import { createSnapshot } from "../state/snapshot.js";
 
 const ALWAYS_OVERWRITE = ["PACKMIND.md"];
 
@@ -26,13 +25,6 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
   if (dryRun) {
     console.log(chalk.dim(`  would update ${entry.name}`));
     return;
-  }
-
-  // Safety net: snapshot before mutating anything.
-  try {
-    createSnapshot(entry.root);
-  } catch {
-    /* backup is best-effort; never block an update on it */
   }
 
   for (const f of ALWAYS_OVERWRITE) copy(path.join(TEMPLATES_DIR, f), path.join(b.dir, f));
@@ -53,7 +45,7 @@ function updateOne(entry: RegistryEntry, dryRun: boolean): void {
 
   registerHooks(path.join(entry.root, config.claude.settingsPath));
   registerMcp(path.join(entry.root, ".mcp.json"));
-  writeEffective(entry.root, config); // refresh resolved guard set
+  writeEffective(entry.root); // refresh resolved guard set
   registerProject(entry.root, pkgVersion());
   console.log(`  ${chalk.green("✓")} ${entry.name}`);
 }

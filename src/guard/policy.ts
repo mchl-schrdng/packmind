@@ -1,4 +1,6 @@
 import { looksSecret } from "./secrets.js";
+import { readJsonOr, writeJson } from "../util/fs-atomic.js";
+import { brain } from "../state/files.js";
 
 export type Severity = "warn" | "block";
 
@@ -57,6 +59,20 @@ export function validateRules(rules: Rule[]): string[] {
     for (const issue of validateRule(r)) problems.push(`${r.id || "(no id)"}: ${issue}`);
   }
   return problems;
+}
+
+/**
+ * Compose the effective rule set: DEFAULT_POLICY rules overlaid by the user's
+ * local policy.json rules.
+ */
+export function resolveRules(root: string): Rule[] {
+  const local = readJsonOr<{ rules?: Rule[] }>(brain(root).policy, {});
+  return [...DEFAULT_POLICY.rules, ...(Array.isArray(local.rules) ? local.rules : [])];
+}
+
+/** Regenerate .packmind/guard.effective.json (the file the pre-write hook reads). */
+export function writeEffective(root: string): void {
+  writeJson(brain(root).effective, { version: 1, rules: resolveRules(root) });
 }
 
 export interface Finding {

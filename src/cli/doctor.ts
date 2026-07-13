@@ -6,7 +6,6 @@ import { loadConfig } from "../state/schema.js";
 import { brain } from "../state/files.js";
 import { buildHookMap, HOOK_SCRIPTS } from "../adapters/claude-code.js";
 import { pruneRegistry } from "./registry.js";
-import { maintainLockDir } from "./maintain-cmd.js";
 import { listTickets, releaseLaunch } from "../state/resume.js";
 
 export function runDoctor(opts: { fix?: boolean } = {}): void {
@@ -55,30 +54,6 @@ export function runDoctor(opts: { fix?: boolean } = {}): void {
       validConfig = false;
     }
     ok(validConfig, "config.json valid");
-
-    // Stale maintain lock: a crashed cron run can leave maintain.lock behind.
-    // maintain itself never steals it; only an explicit --fix removes one, and
-    // only when it is older than six hours.
-    const lockDir = maintainLockDir(p.root);
-    if (fs.existsSync(lockDir)) {
-      let ageMs = 0;
-      try {
-        ageMs = Date.now() - fs.statSync(lockDir).mtimeMs;
-      } catch {
-        /* vanished between the check and the stat */
-      }
-      const stale = ageMs > 6 * 60 * 60 * 1000;
-      if (stale && opts.fix) {
-        try {
-          fs.rmSync(lockDir, { recursive: true, force: true });
-          ok(true, "stale maintain lock removed (>6h)");
-        } catch (err) {
-          ok(false, `could not remove stale maintain lock: ${(err as Error).message}`);
-        }
-      } else {
-        ok(!stale, stale ? "stale maintain lock (>6h) - run `packmind doctor --fix`" : "maintain lock present (maintenance running)");
-      }
-    }
 
     // Orphaned resume launches: `packmind resume` killed hard (or a machine
     // reboot) leaves a ticket in `launching`, which refuses every retry.
