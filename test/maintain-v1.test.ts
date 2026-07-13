@@ -92,6 +92,17 @@ describe("runMaintain exit codes", () => {
     expect(fs.existsSync(maintainLockDir(root))).toBe(false); // lock never taken
   });
 
+  it("1 on corrupted config.json, without mutating anything (no silent defaults)", async () => {
+    const root = project();
+    fs.writeFileSync(path.join(root, ".packmind", "config.json"), "{ not json !!");
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const before = fs.readdirSync(path.join(root, ".packmind"));
+    expect(await run(root, { quiet: true })).toBe(1);
+    expect(err.mock.calls.flat().join("\n")).toMatch(/config\.json/);
+    expect(fs.readdirSync(path.join(root, ".packmind"))).toEqual(before); // no map.md created
+    expect(fs.existsSync(maintainLockDir(root))).toBe(false);
+  });
+
   it("3 when another maintenance holds the lock", async () => {
     const root = project();
     const err = vi.spyOn(console, "error").mockImplementation(() => {});

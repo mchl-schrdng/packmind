@@ -7,6 +7,18 @@ export interface Embedder {
 }
 
 /**
+ * The OPTIONAL '@xenova/transformers' dependency is not installed. This is a
+ * normal setup (recall simply unavailable), not a corruption: callers like
+ * `maintain` warn and continue instead of failing the run.
+ */
+export class EmbedderUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmbedderUnavailableError";
+  }
+}
+
+/**
  * Local, offline embedder backed by transformers.js (WASM). The model is
  * downloaded once and cached under ~/.packmind/models - no API key, no network
  * after the first run, nothing leaves the machine.
@@ -31,7 +43,7 @@ export class LocalEmbedder implements Embedder {
       const pkg = "@xenova/transformers";
       mod = await import(pkg);
     } catch {
-      throw new Error(
+      throw new EmbedderUnavailableError(
         "Semantic recall needs the optional '@xenova/transformers' package. Install it with:\n" +
           "  npm install -g @xenova/transformers\n" +
           "(or set recall.enabled = false in .packmind/config.json to disable recall).",

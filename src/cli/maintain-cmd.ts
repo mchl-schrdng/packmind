@@ -6,7 +6,8 @@ import { requireProject } from "./ctx.js";
 import { scanProject } from "../state/mapper.js";
 import { consolidateJournal } from "../state/maintain.js";
 import { refreshFromQueue } from "../recall/indexer.js";
-import { LocalEmbedder } from "../recall/embedder.js";
+import { LocalEmbedder, EmbedderUnavailableError } from "../recall/embedder.js";
+import { brain } from "../state/files.js";
 import { pruneSnapshots } from "../state/snapshot.js";
 import { pruneStaleSessions, activeSessions } from "../state/session.js";
 import { reconcileAndSync } from "../change/service.js";
@@ -79,6 +80,17 @@ export async function runMaintain(opts: { quiet?: boolean; keepBackups?: string 
   }
   const { projectRoot, config } = requireProject();
 
+  // loadConfig (inside requireProject) silently falls back to defaults when
+  // config.json is corrupted; maintain must never mutate state based on
+  // defaults the user never chose. Strict-parse it: invalid -> exit 1, still
+  // before any mutation or lock.
+  try {
+    JSON.parse(fs.readFileSync(brain(projectRoot).config, "utf8"));
+  } catch (err) {
+    console.error(chalk.red(`✗ .packmind/config.json is not valid JSON (${(err as Error).message.split("\n")[0]}) - fix it, then re-run.`));
+    return 1;
+  }
+
   const say = (m: string) => {
     if (!opts.quiet) console.log(m);
   };
@@ -101,18 +113,22 @@ export async function runMaintain(opts: { quiet?: boolean; keepBackups?: string 
   }
 
   try {
-    // 3. Reconcile active sessions.
+    // 3. Reconcile active sessions. One bad session doesn't stop the others,
+    // but its failure is named on stderr and fails the step (no backup prune).
     step("reconcile sessions", () => {
       let reconciled = 0;
+      const failed: string[] = [];
       for (const a of activeSessions(projectRoot)) {
         try {
           reconcileAndSync(projectRoot, config, { incarnationId: a.record.id, sessionId: a.record.sessionId, cwd: a.record.cwd });
           reconciled++;
-        } catch {
-          /* per-session best effort */
+        } catch (err) {
+          failed.push(a.record.id);
+          console.error(chalk.red(`✗ reconcile failed for session ${a.record.id} - ${(err as Error).message.split("\n")[0]}`));
         }
       }
       if (reconciled) say(chalk.cyan(`• change sets reconciled - ${reconciled} session(s)`));
+      if (failed.length) throw new Error(`${failed.length} session(s) failed to reconcile`);
     });
 
     // 4. Refresh the map.
@@ -122,13 +138,19 @@ export async function runMaintain(opts: { quiet?: boolean; keepBackups?: string 
     });
 
     // 5. Process the recall queue incrementally. The optional embedder being
-    // unavailable is a normal condition (optional dependency), not a failure.
+    // absent is a normal setup - warn on stderr (so --quiet can't hide it)
+    // without failing the run. ANY other recall error is a real step failure.
     if (config.recall.enabled) {
       try {
         const n = await refreshFromQueue(projectRoot, config, new LocalEmbedder(config.recall.embedModel));
         if (n) say(chalk.cyan(`• recall queue processed - ${n} chunks`));
       } catch (err) {
-        say(chalk.yellow(`• recall skipped - ${(err as Error).message.split("\n")[0]}`));
+        if (err instanceof EmbedderUnavailableError) {
+          console.error(chalk.yellow(`! recall skipped - ${err.message.split("\n")[0]}`));
+        } else {
+          failures.push("recall queue");
+          console.error(chalk.red(`✗ recall queue failed - ${(err as Error).message.split("\n")[0]}`));
+        }
       }
     }
 
