@@ -287,22 +287,18 @@ export function looksSecret(file: string, extra: string[] = [], relPath?: string
 }
 
 // --- path guard (mirror of guard/path-guard.ts) -----------------------------
-function realWithinRoot(base: string, target: string): boolean {
-  let realBase: string;
-  try {
-    realBase = fs.realpathSync(base);
-  } catch {
-    return true;
-  }
-  let cur = target;
+function canonicalize(p: string): string {
+  const abs = path.resolve(p);
+  let cur = abs;
+  const tail: string[] = [];
   for (;;) {
     try {
-      const real = fs.realpathSync(cur);
-      const rel = path.relative(realBase, real);
-      return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+      const real = fs.realpathSync.native(cur);
+      return tail.length ? path.join(real, ...tail) : real;
     } catch {
       const parent = path.dirname(cur);
-      if (parent === cur) return true;
+      if (parent === cur) return abs;
+      tail.unshift(path.basename(cur));
       cur = parent;
     }
   }
@@ -310,10 +306,11 @@ function realWithinRoot(base: string, target: string): boolean {
 export function confineToRoot(root: string, candidate: string): string | null {
   const base = path.resolve(root);
   const resolved = path.isAbsolute(candidate) ? path.resolve(candidate) : path.resolve(base, candidate);
-  const rel = path.relative(base, resolved);
+  const canonBase = canonicalize(base);
+  const canonTarget = canonicalize(resolved);
+  const rel = path.relative(canonBase, canonTarget);
   if (rel !== "" && (rel.startsWith("..") || path.isAbsolute(rel))) return null;
-  if (!realWithinRoot(base, resolved)) return null;
-  return resolved;
+  return canonTarget;
 }
 export function samePath(root: string, a: string, b: string): boolean {
   const ra = confineToRoot(root, a);
