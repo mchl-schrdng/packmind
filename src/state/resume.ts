@@ -87,11 +87,18 @@ export function tryAcquireLaunch(root: string, sessionId: string, now: string): 
   return acquired;
 }
 
-/** Roll a failed launch back to blocked so the ticket stays recoverable. */
+/** Roll a failed/unconfirmed launch back to blocked so the ticket stays
+ * recoverable. A ticket already removed (SessionStart confirmed the resume)
+ * is left absent - never re-materialized. */
 export function releaseLaunch(root: string, sessionId: string, now: string): void {
-  updateJson<ResumeTicketV1 | null>(ticketFile(root, sessionId), null, (t) =>
+  const file = ticketFile(root, sessionId);
+  if (!fs.existsSync(file)) return;
+  updateJson<ResumeTicketV1 | null>(file, null, (t) =>
     t ? { ...t, status: "blocked", updatedAt: now } : t,
   );
+  // The existence check above can race with a concurrent removal, leaving a
+  // literal `null` JSON file behind; drop it (same guard as tryAcquireLaunch).
+  if (!readJsonOr<ResumeTicketV1 | null>(file, null)) removeTicket(root, sessionId);
 }
 
 export function removeTicket(root: string, sessionId: string): void {

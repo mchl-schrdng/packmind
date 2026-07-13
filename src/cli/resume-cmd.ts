@@ -4,6 +4,7 @@ import { requireProject } from "./ctx.js";
 import { onWindows } from "../util/platform.js";
 import {
   listTickets,
+  readTicket,
   tryAcquireLaunch,
   releaseLaunch,
   type ResumeTicketV1,
@@ -55,7 +56,10 @@ export function selectTicket(
 export interface ResumeDeps {
   now(): number;
   sleep(ms: number): Promise<void>;
-  spawnClaude(sessionId: string, cwd: string): Promise<{ ok: true } | { ok: false; error: string }>;
+  spawnClaude(
+    sessionId: string,
+    cwd: string,
+  ): Promise<{ spawned: true; exitCode: number } | { spawned: false; error: string }>;
   log(m: string): void;
   err(m: string): void;
   /** Register an interrupt (Ctrl-C) handler; returns an unregister fn. */
@@ -75,9 +79,9 @@ function realDeps(): ResumeDeps {
           stdio: "inherit",
           shell: false,
         });
-        child.once("error", (e) => resolve({ ok: false, error: e.message }));
+        child.once("error", (e) => resolve({ spawned: false, error: e.message }));
         child.once("spawn", () => {
-          child.once("exit", () => resolve({ ok: true }));
+          child.once("exit", (code) => resolve({ spawned: true, exitCode: code ?? 0 }));
         });
       }),
     log: (m) => console.log(m),
@@ -154,12 +158,27 @@ export async function runResume(
   }
 
   const result = await deps.spawnClaude(ticket.sessionId, projectRoot);
-  if (!result.ok) {
+  if (!result.spawned) {
     // Keep the ticket recoverable: back to blocked, user can retry.
     releaseLaunch(projectRoot, ticket.sessionId, new Date(deps.now()).toISOString());
     deps.err(`✗ failed to launch claude: ${result.error}. Ticket kept - fix the PATH and re-run \`packmind resume\`.`);
     return 1;
   }
-  // On success the SessionStart hook confirms the resume and drops the ticket.
+
+  // The SessionStart hook removes the ticket when the session demonstrably
+  // came back. A ticket still in `launching` after claude exited means the
+  // resume was never confirmed (claude errored out, or died before hooks ran):
+  // put it back to blocked so `packmind resume` can be retried.
+  const leftover = readTicket(projectRoot, ticket.sessionId);
+  if (leftover && leftover.status === "launching") {
+    releaseLaunch(projectRoot, ticket.sessionId, new Date(deps.now()).toISOString());
+    if (result.exitCode === 0) {
+      deps.log("Claude exited without confirming the resume - ticket kept so you can retry.");
+    }
+  }
+  if (result.exitCode !== 0) {
+    deps.err(`✗ claude exited with code ${result.exitCode}${leftover ? " - ticket kept, re-run `packmind resume`" : ""}.`);
+    return 1;
+  }
   return 0;
 }

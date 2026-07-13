@@ -12,6 +12,7 @@ import {
 import { pruneStaleSessions } from "../src/state/session.js";
 import { runDoctor } from "../src/cli/doctor.js";
 import { registerProject } from "../src/cli/registry.js";
+import { blockTicket, tryAcquireLaunch, readTicket, ticketFile } from "../src/state/resume.js";
 
 // ESM namespaces aren't spyable in place; spy-mock the whole module (real
 // implementations still run) so the never-spawns test can observe calls.
@@ -132,6 +133,27 @@ describe("doctor --fix", () => {
     fs.utimesSync(dir, old, old);
     runDoctor({});
     expect(fs.existsSync(dir)).toBe(true);
+  });
+
+  it("resets a launching resume ticket older than six hours back to blocked", () => {
+    const root = project();
+    registerProject(root, "1.0.0");
+    const staleAt = new Date(Date.now() - 7 * 3600 * 1000).toISOString();
+    const freshAt = new Date().toISOString();
+    blockTicket(root, "stale", staleAt);
+    expect(tryAcquireLaunch(root, "stale", staleAt)).toBe(true);
+    blockTicket(root, "fresh", freshAt);
+    expect(tryAcquireLaunch(root, "fresh", freshAt)).toBe(true);
+    // Age comes from updatedAt inside the ticket, set above via `now` params.
+    fs.writeFileSync(ticketFile(root, "stale"), JSON.stringify({ ...readTicket(root, "stale"), updatedAt: staleAt }));
+
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    runDoctor({}); // without --fix: reported, untouched
+    expect(readTicket(root, "stale")!.status).toBe("launching");
+
+    runDoctor({ fix: true });
+    expect(readTicket(root, "stale")!.status).toBe("blocked"); // recoverable again
+    expect(readTicket(root, "fresh")!.status).toBe("launching"); // fresh one kept
   });
 });
 

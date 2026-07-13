@@ -7,6 +7,7 @@ import { brain } from "../state/files.js";
 import { buildHookMap, HOOK_SCRIPTS } from "../adapters/claude-code.js";
 import { pruneRegistry } from "./registry.js";
 import { maintainLockDir } from "./maintain-cmd.js";
+import { listTickets, releaseLaunch } from "../state/resume.js";
 
 export function runDoctor(opts: { fix?: boolean } = {}): void {
   console.log(chalk.bold.cyan("\nPackMind doctor\n"));
@@ -76,6 +77,23 @@ export function runDoctor(opts: { fix?: boolean } = {}): void {
         }
       } else {
         ok(!stale, stale ? "stale maintain lock (>6h) - run `packmind doctor --fix`" : "maintain lock present (maintenance running)");
+      }
+    }
+
+    // Orphaned resume launches: `packmind resume` killed hard (or a machine
+    // reboot) leaves a ticket in `launching`, which refuses every retry.
+    // Only --fix resets one, and only after the same 6h crash window.
+    for (const { ticket } of listTickets(p.root)) {
+      if (ticket.status !== "launching") continue;
+      const age = Date.now() - Date.parse(ticket.updatedAt ?? "");
+      const stale = Number.isFinite(age) && age > 6 * 60 * 60 * 1000;
+      if (stale && opts.fix) {
+        releaseLaunch(p.root, ticket.sessionId, new Date().toISOString());
+        ok(true, `stale launching resume ticket reset to blocked (session ${ticket.sessionId})`);
+      } else {
+        ok(!stale, stale
+          ? `resume ticket stuck in launching (>6h, session ${ticket.sessionId}) - run \`packmind doctor --fix\``
+          : `resume launch in progress (session ${ticket.sessionId})`);
       }
     }
   }

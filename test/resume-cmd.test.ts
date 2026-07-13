@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { decideResume, selectTicket, runResume } from "../src/cli/resume-cmd.js";
-import { blockTicket, readTicket, type ResumeTicketV1 } from "../src/state/resume.js";
+import { blockTicket, readTicket, removeTicket, ticketFile, type ResumeTicketV1 } from "../src/state/resume.js";
 
 const NOW = Date.parse("2026-07-13T10:00:00.000Z");
 const PAST = "2026-07-13T09:00:00.000Z";
@@ -72,7 +72,7 @@ function fakeDeps(clockMs: number) {
     deps: {
       now: () => clock,
       sleep: async (ms: number) => { clock += ms; },
-      spawnClaude: async (sessionId: string) => { spawned.push(sessionId); return { ok: true as const }; },
+      spawnClaude: async (sessionId: string) => { spawned.push(sessionId); return { spawned: true as const, exitCode: 0 }; },
       log: (m: string) => logs.push(m),
       err: (m: string) => errs.push(m),
       onInterrupt: (_fn: () => void) => () => {},
@@ -159,7 +159,7 @@ describe("runResume", () => {
     // Hold the first spawn open so the second command runs while ticket=launching.
     let release!: () => void;
     const gate = new Promise<void>((r) => { release = r; });
-    f1.deps.spawnClaude = async (sid: string) => { f1.spawned.push(sid); await gate; return { ok: true as const }; };
+    f1.deps.spawnClaude = async (sid: string) => { f1.spawned.push(sid); await gate; return { spawned: true as const, exitCode: 0 }; };
     const p1 = run(root, {}, f1);
     // Wait until p1 actually holds the launch (ticket = launching).
     for (let i = 0; i < 100 && readTicket(root, "s1")!.status !== "launching"; i++) {
@@ -177,8 +177,41 @@ describe("runResume", () => {
     const root = project();
     blockTicket(root, "s1", PAST, PAST);
     const f = fakeDeps(NOW);
-    f.deps.spawnClaude = async () => ({ ok: false as const, error: "claude not found in PATH" }) as { ok: true } | { ok: false; error: string };
+    f.deps.spawnClaude = async () => ({ spawned: false as const, error: "claude not found in PATH" });
     expect(await run(root, {}, f)).toBe(1);
     expect(readTicket(root, "s1")!.status).toBe("blocked");
+  });
+
+  it("claude exiting non-zero -> exit 1 and the ticket goes back to blocked (retryable)", async () => {
+    const root = project();
+    blockTicket(root, "s1", PAST, PAST);
+    const f = fakeDeps(NOW);
+    f.deps.spawnClaude = async (sid: string) => { f.spawned.push(sid); return { spawned: true as const, exitCode: 1 }; };
+    expect(await run(root, {}, f)).toBe(1);
+    expect(readTicket(root, "s1")!.status).toBe("blocked");
+    // retry is possible
+    expect(await run(root, {}, f)).toBe(1);
+    expect(f.spawned).toEqual(["s1", "s1"]);
+  });
+
+  it("claude exiting 0 without SessionStart confirmation -> ticket re-blocked, exit 0", async () => {
+    const root = project();
+    blockTicket(root, "s1", PAST, PAST);
+    const f = fakeDeps(NOW);
+    expect(await run(root, {}, f)).toBe(0);
+    expect(readTicket(root, "s1")!.status).toBe("blocked");
+  });
+
+  it("claude exiting 0 after SessionStart removed the ticket -> exit 0 and NO ticket recreated", async () => {
+    const root = project();
+    blockTicket(root, "s1", PAST, PAST);
+    const f = fakeDeps(NOW);
+    f.deps.spawnClaude = async (sid: string) => {
+      f.spawned.push(sid);
+      removeTicket(root, "s1"); // what the real SessionStart hook does
+      return { spawned: true as const, exitCode: 0 };
+    };
+    expect(await run(root, {}, f)).toBe(0);
+    expect(fs.existsSync(ticketFile(root, "s1"))).toBe(false); // no null/ghost file
   });
 });
