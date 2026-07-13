@@ -37,6 +37,15 @@ describe("path guard", () => {
     const confined = confineToRoot(project, path.join(alias, ".env"));
     expect(confined).toBe(path.join(fs.realpathSync(project), ".env"));
   });
+  it("accepts a case-aliased absolute path on case-insensitive filesystems", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-Case-"));
+    const project = path.join(base, "Project");
+    fs.mkdirSync(project);
+    const aliased = path.join(base, "project"); // same directory, different case
+    if (!fs.existsSync(aliased)) return; // case-sensitive filesystem: no alias to test
+    const confined = confineToRoot(project, path.join(aliased, ".env"));
+    expect(confined).toBe(path.join(fs.realpathSync.native(project), ".env"));
+  });
   it("rejects a lexically-in-root path whose real ancestor is a symlink out of root", () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-sym-"));
     const project = path.join(base, "project");

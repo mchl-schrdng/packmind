@@ -15,7 +15,9 @@ function canonicalize(p: string): string {
   let suffix = "";
   for (;;) {
     try {
-      const real = fs.realpathSync(cur);
+      // .native (realpath(3)) also normalizes character case on
+      // case-insensitive filesystems; the JS implementation does not.
+      const real = fs.realpathSync.native(cur);
       return suffix ? path.join(real, suffix) : real;
     } catch {
       const parent = path.dirname(cur);
