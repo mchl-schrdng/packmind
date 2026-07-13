@@ -34,8 +34,39 @@ describe("path guard", () => {
     fs.symlinkSync(outside, path.join(project, "link"));
     // A write under the symlink would land in `outside` - must be refused.
     expect(confineToRoot(project, "link/CLAUDE.md")).toBeNull();
-    // A genuine in-root path is still accepted.
-    expect(confineToRoot(project, "src/a.ts")).toBe(path.join(project, "src", "a.ts"));
+    // A genuine in-root path is still accepted (returned in canonical form).
+    const real = fs.realpathSync.native(project);
+    expect(confineToRoot(project, "src/a.ts")).toBe(path.join(real, "src", "a.ts"));
+  });
+
+  it("accepts an in-root path when root reaches the project through a symlinked ancestor", () => {
+    // Regression: root and candidate expressed in different-but-equivalent forms
+    // used to MISCOMPARE and return null, so the write hooks fell open and
+    // skipped every guardrail for that path.
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-alias-"));
+    const realRoot = path.join(base, "root");
+    fs.mkdirSync(realRoot);
+    const linkedRoot = path.join(base, "link"); // symlink -> realRoot
+    fs.symlinkSync(realRoot, linkedRoot);
+
+    // Root given via the symlink, candidate given via the canonical path.
+    const canonical = fs.realpathSync.native(realRoot);
+    expect(confineToRoot(linkedRoot, path.join(canonical, ".env"))).toBe(path.join(canonical, ".env"));
+    // ...and the mirror: root canonical, candidate via the symlink.
+    expect(confineToRoot(canonical, path.join(linkedRoot, ".env"))).toBe(path.join(canonical, ".env"));
+    // A genuine escape is still rejected across the alias.
+    expect(confineToRoot(linkedRoot, path.join(base, "outside.txt"))).toBeNull();
+  });
+
+  it("accepts a case-aliased in-root path on a case-insensitive filesystem", () => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-case-"));
+    const real = path.join(base, "PackMind");
+    fs.mkdirSync(real);
+    // Skip on a case-sensitive volume, where the lowercase form is a different dir.
+    if (!fs.existsSync(path.join(base, "packmind"))) return;
+    const aliased = path.join(base, "packmind"); // same dir, different case
+    // Root given lowercase, candidate under the on-disk (mixed-case) path.
+    expect(confineToRoot(aliased, path.join(real, "config.json"))).not.toBeNull();
   });
 });
 

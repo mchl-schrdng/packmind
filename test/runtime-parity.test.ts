@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import * as os from "node:os";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as canon from "../src/state/formats.js";
 import * as est from "../src/cost/estimator.js";
 import * as secrets from "../src/guard/secrets.js";
@@ -55,6 +58,24 @@ describe("hook runtime parity", () => {
     const root = "/p";
     expect(rt.samePath(root, "src/a.ts", "src/a.ts")).toEqual(guard.samePath(root, "src/a.ts", "src/a.ts"));
     expect(rt.samePath(root, "util/a.ts", "src/util/a.ts")).toEqual(guard.samePath(root, "util/a.ts", "src/util/a.ts"));
+  });
+
+  it("confineToRoot matches, including a symlink-aliased root (exercises canonicalize)", () => {
+    // Lexical-only cases (nothing exists) fall back to the same lexical form.
+    for (const [root, cand] of [["/p", "src/a.ts"], ["/p", "../escape"], ["/p", "/other/x"]] as const) {
+      expect(rt.confineToRoot(root, cand)).toEqual(guard.confineToRoot(root, cand));
+    }
+    // A real symlink alias: both mirrors must canonicalize identically (this is
+    // the case the lexical /p fixtures can't reach).
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), "pm-parity-"));
+    const realRoot = path.join(base, "root");
+    fs.mkdirSync(realRoot);
+    const linkedRoot = path.join(base, "link");
+    fs.symlinkSync(realRoot, linkedRoot);
+    const canonical = fs.realpathSync.native(realRoot);
+    for (const cand of [path.join(canonical, ".env"), path.join(linkedRoot, ".env"), path.join(base, "outside.txt")]) {
+      expect(rt.confineToRoot(linkedRoot, cand)).toEqual(guard.confineToRoot(linkedRoot, cand));
+    }
   });
 
   it("evaluateWrite matches for a secret-block case", () => {
